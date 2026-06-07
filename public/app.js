@@ -72,6 +72,7 @@ function escapeHtml(text) {
 }
 
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx']
+const MARKDOWN_TASK_ITEM_RE = /^\s*[-*+]\s+\[[ xX]\]/
 
 const THEMES = ['dark', 'light', 'one-dark']
 const THEME_STORAGE_KEY = 'dwr-theme'
@@ -131,6 +132,66 @@ function isMarkdownFile(path) {
   return MARKDOWN_EXTENSIONS.some((ext) => lower.endsWith(ext))
 }
 
+function collectMarkdownTaskLineIndexes(content) {
+  /** @type {number[]} */
+  const indexes = []
+  content.split('\n').forEach((line, index) => {
+    if (MARKDOWN_TASK_ITEM_RE.test(line)) {
+      indexes.push(index)
+    }
+  })
+  return indexes
+}
+
+function isMarkdownTaskLine(line) {
+  return MARKDOWN_TASK_ITEM_RE.test(line)
+}
+
+function setMarkdownTaskLineChecked(line, checked) {
+  return line.replace(/^(\s*[-*+]\s+\[)[ xX](\])/, `$1${checked ? 'x' : ' '}$2`)
+}
+
+function enhanceMarkdownTaskListHtml(content, html) {
+  const taskLineIndexes = collectMarkdownTaskLineIndexes(content)
+  if (taskLineIndexes.length === 0) {
+    return html
+  }
+
+  const lines = content.split('\n')
+  let taskIndex = 0
+
+  return html.replace(/<input\b[^>]*\btype="checkbox"[^>]*>/gi, (match) => {
+    if (taskIndex >= taskLineIndexes.length) {
+      return match
+    }
+
+    const lineIndex = taskLineIndexes[taskIndex]
+    const line = lines[lineIndex] ?? ''
+    const checked = /^\s*[-*+]\s+\[[xX]\]/.test(line)
+    taskIndex += 1
+
+    return `<input type="checkbox" class="md-task-checkbox" data-task-line="${lineIndex}"${checked ? ' checked' : ''}>`
+  })
+}
+
+function toggleMarkdownTaskAtLine(lineIndex, checked) {
+  const lines = draftFileContent.split('\n')
+  const line = lines[lineIndex]
+  if (!line || !isMarkdownTaskLine(line)) {
+    return false
+  }
+
+  const nextLine = setMarkdownTaskLineChecked(line, checked)
+  if (nextLine === line) {
+    return false
+  }
+
+  lines[lineIndex] = nextLine
+  draftFileContent = lines.join('\n')
+  updateEditorToolbar()
+  return true
+}
+
 function renderMarkdown(content) {
   if (typeof marked === 'undefined') {
     return escapeHtml(content)
@@ -141,9 +202,13 @@ function renderMarkdown(content) {
     breaks: true,
   })
 
-  const html = marked.parse(content)
+  let html = marked.parse(content)
+  html = enhanceMarkdownTaskListHtml(content, html)
+
   if (typeof DOMPurify !== 'undefined') {
-    return DOMPurify.sanitize(html)
+    return DOMPurify.sanitize(html, {
+      ADD_ATTR: ['data-task-line'],
+    })
   }
   return html
 }
@@ -1068,6 +1133,27 @@ async function init() {
     saveActiveFile().catch((error) => {
       window.alert(error instanceof Error ? error.message : '保存失败')
     })
+  })
+
+  editorBodyEl.addEventListener('change', (event) => {
+    const target = event.target
+    if (!(target instanceof HTMLInputElement) || !target.classList.contains('md-task-checkbox')) {
+      return
+    }
+
+    if (editorMode !== 'view' || !activeFilePath || !isMarkdownFile(activeFilePath)) {
+      return
+    }
+
+    const lineIndex = Number(target.dataset.taskLine)
+    if (Number.isNaN(lineIndex)) {
+      return
+    }
+
+    const checked = target.checked
+    if (!toggleMarkdownTaskAtLine(lineIndex, checked)) {
+      target.checked = !checked
+    }
   })
 
   document.addEventListener('keydown', (event) => {

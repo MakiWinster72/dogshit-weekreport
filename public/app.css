@@ -726,6 +726,28 @@ body.is-resizing * {
   padding-left: 1.5em;
 }
 
+.markdown-body ul.contains-task-list {
+  padding-left: 0;
+}
+
+.markdown-body .task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  list-style: none;
+}
+
+.markdown-body .task-list-item .md-task-checkbox {
+  margin-top: 0.35em;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.markdown-body .task-list-item:has(.md-task-checkbox:checked) {
+  color: var(--text-muted);
+}
+
 .markdown-body li + li {
   margin-top: 0.25em;
 }
