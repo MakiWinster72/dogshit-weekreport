@@ -20,7 +20,29 @@
       <div class="workspace">
         <aside class="sidebar">
           <div class="panel-header file-panel-header">
-            <span>文件</span>
+            <div class="file-panel-header-main">
+              <button
+                type="button"
+                class="tree-action-btn"
+                id="file-tree-nav-up"
+                title="返回上一层"
+                aria-label="返回上一层"
+                disabled
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
+                  />
+                </svg>
+              </button>
+              <span>文件</span>
+            </div>
             <div class="tree-actions">
               <button
                 type="button"
@@ -65,10 +87,11 @@
           <div class="file-tree-nav" id="file-tree-nav">
             <button
               type="button"
-              class="file-tree-nav-btn"
+              class="file-tree-nav-btn is-scope-all"
               id="file-tree-nav-all"
+              title="显示整个项目"
             >
-              根目录
+              全部
             </button>
             <span class="file-tree-nav-path" id="file-tree-nav-path"></span>
           </div>

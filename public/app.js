@@ -1,6 +1,7 @@
 const projectPathEl = document.getElementById('project-path')
 const fileTreeEl = document.getElementById('file-tree')
 const fileTreeNavAllBtn = document.getElementById('file-tree-nav-all')
+const fileTreeNavUpBtn = document.getElementById('file-tree-nav-up')
 const fileTreeNavPathEl = document.getElementById('file-tree-nav-path')
 const editorTabEl = document.getElementById('editor-tab')
 const editorBodyEl = document.getElementById('editor-body')
@@ -79,10 +80,14 @@ const DEFAULT_THEME = 'one-dark'
 const THEME_STORAGE_KEY = 'dwr-theme'
 const LAST_FILE_STORAGE_KEY = 'dwr-last-file'
 const DEFAULT_TREE_PATH = 'work'
+const FOCUS_ROOT_NAMES = new Set(['work', 'CLAUDE.md', '.claude'])
 let currentThemeIndex = THEMES.indexOf(DEFAULT_THEME)
 
 /** @type {string} */
 let treeViewPath = DEFAULT_TREE_PATH
+
+/** @type {'focus' | 'full'} */
+let treeScope = 'focus'
 
 /** @type {Map<string, string>} */
 const treeDirectoryFingerprints = new Map()
@@ -707,7 +712,7 @@ async function openFile(path) {
   }
 }
 
-function createTreeRow(entry, depth, options = {}) {
+function createTreeRow(entry, depth) {
   const row = document.createElement('div')
   row.className = `tree-row ${entry.type}`
   row.style.setProperty('--depth', String(depth))
@@ -716,8 +721,8 @@ function createTreeRow(entry, depth, options = {}) {
 
   if (entry.type === 'directory') {
     const chevron = document.createElement('span')
-    chevron.className = options.flat ? 'tree-chevron nav-indicator' : 'tree-chevron'
-    chevron.textContent = options.flat ? '›' : '▸'
+    chevron.className = 'tree-chevron'
+    chevron.textContent = '▸'
     row.appendChild(chevron)
 
     const icon = document.createElement('span')
@@ -750,24 +755,133 @@ function createTreeRow(entry, depth, options = {}) {
   return row
 }
 
+function updateDirectoryRowIcon(row, expanded) {
+  const iconEl = row.querySelector('.tree-icon')
+  const chevronEl = row.querySelector('.tree-chevron')
+  const dirName = row.dataset.path.split('/').pop() ?? ''
+  if (iconEl) {
+    iconEl.innerHTML = renderFileIcon(resolveDirectoryIconName(dirName, expanded))
+  }
+  if (chevronEl) {
+    chevronEl.textContent = expanded ? '▾' : '▸'
+  }
+}
+
+function filterRootEntries(entries) {
+  if (treeScope === 'full') {
+    return entries
+  }
+  return entries.filter((entry) => FOCUS_ROOT_NAMES.has(entry.name))
+}
+
+function setTreeScope(scope) {
+  treeScope = scope
+  updateTreeNavUI()
+}
+
+async function showFullProjectTree() {
+  setTreeScope('full')
+  setTreeViewPath('')
+  await reloadDirectory('', fileTreeEl, 0)
+  treeDirectoryFingerprints.set('', await fetchDirectoryFingerprint(''))
+}
+
+async function showFocusProjectTree() {
+  setTreeScope('focus')
+  await reloadDirectory('', fileTreeEl, 0)
+  treeDirectoryFingerprints.set('', await fetchDirectoryFingerprint(''))
+
+  const defaultPath = await checkDirectoryExists(DEFAULT_TREE_PATH) ? DEFAULT_TREE_PATH : ''
+  if (defaultPath) {
+    await expandPathInTree(defaultPath)
+  }
+  setTreeViewPath(defaultPath)
+}
+
+async function toggleTreeScope() {
+  if (treeScope === 'focus') {
+    await showFullProjectTree()
+    return
+  }
+  await showFocusProjectTree()
+}
+
+function setTreeViewPath(path) {
+  treeViewPath = path
+  updateTreeNavUI()
+}
+
+function navigateTreeUp() {
+  if (!treeViewPath) {
+    return
+  }
+  setTreeViewPath(getParentPath(treeViewPath))
+}
+
 function updateTreeNavUI() {
   if (!fileTreeNavAllBtn || !fileTreeNavPathEl) {
     return
   }
 
-  fileTreeNavAllBtn.classList.toggle('is-active', treeViewPath === '')
-  fileTreeNavPathEl.textContent = treeViewPath || 'work为周报文件夹'
+  if (treeScope === 'full') {
+    fileTreeNavAllBtn.classList.add('is-focus-return')
+    fileTreeNavAllBtn.classList.remove('is-scope-all')
+    fileTreeNavAllBtn.title = '返回 work 聚焦视图'
+    fileTreeNavAllBtn.innerHTML =
+      'work<span class="file-tree-nav-back" aria-hidden="true">←</span>'
+  } else {
+    fileTreeNavAllBtn.classList.remove('is-focus-return')
+    fileTreeNavAllBtn.classList.add('is-scope-all')
+    fileTreeNavAllBtn.title = '显示整个项目'
+    fileTreeNavAllBtn.textContent = '全部'
+  }
+
+  fileTreeNavPathEl.textContent =
+    treeViewPath || (treeScope === 'full' ? '项目根目录' : 'work为周报文件夹')
+  if (fileTreeNavUpBtn) {
+    fileTreeNavUpBtn.disabled = !treeViewPath
+  }
 }
 
-async function loadDirectoryListing(path, container) {
-  const data = await fetchJson(`/api/files?path=${encodeURIComponent(path)}`)
+async function reloadDirectory(path, container, depth) {
+  container.innerHTML = ''
+  await loadDirectory(path, container, depth)
+}
 
-  for (const entry of data.entries) {
-    const row = createTreeRow(entry, 0, { flat: true })
+async function loadDirectory(path, container, depth) {
+  const data = await fetchJson(`/api/files?path=${encodeURIComponent(path)}`)
+  const entries = path === '' ? filterRootEntries(data.entries) : data.entries
+
+  for (const entry of entries) {
+    const node = document.createElement('div')
+    node.className = 'tree-node'
+    if (entry.type === 'directory') {
+      node.classList.add('directory')
+    }
+
+    const row = createTreeRow(entry, depth)
+    node.appendChild(row)
 
     if (entry.type === 'directory') {
-      row.addEventListener('click', () => {
-        navigateTreeTo(entry.path)
+      const childContainer = document.createElement('div')
+      childContainer.className = 'tree-children'
+      node.appendChild(childContainer)
+
+      row.addEventListener('click', async (event) => {
+        event.stopPropagation()
+        setTreeViewPath(entry.path)
+        const expanded = node.classList.toggle('expanded')
+        updateDirectoryRowIcon(row, expanded)
+
+        if (expanded && !node.dataset.loaded) {
+          node.dataset.loaded = '1'
+          try {
+            await loadDirectory(entry.path, childContainer, depth + 1)
+            treeDirectoryFingerprints.set(entry.path, await fetchDirectoryFingerprint(entry.path))
+          } catch {
+            childContainer.innerHTML = `<div class="tree-row" style="--depth:${depth + 1};color:#f48771">加载失败</div>`
+          }
+        }
       })
     } else {
       row.addEventListener('click', () => {
@@ -775,22 +889,117 @@ async function loadDirectoryListing(path, container) {
       })
     }
 
-    container.appendChild(row)
+    container.appendChild(node)
   }
 }
 
-async function navigateTreeTo(path) {
-  treeViewPath = path
-  updateTreeNavUI()
-  fileTreeEl.innerHTML = ''
+function collectExpandedDirectoryPaths() {
+  /** @type {string[]} */
+  const paths = []
+  fileTreeEl.querySelectorAll('.tree-node.directory.expanded').forEach((node) => {
+    const row = node.querySelector('.tree-row.directory')
+    const path = row?.dataset.path
+    if (path !== undefined) {
+      paths.push(path)
+    }
+  })
+  return paths.sort((a, b) => a.split('/').length - b.split('/').length)
+}
 
-  try {
-    await loadDirectoryListing(path, fileTreeEl)
-    treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
-  } catch (error) {
-    fileTreeEl.innerHTML = `<div class="editor-empty" style="height:auto;padding:16px;color:#f48771">${escapeHtml(error instanceof Error ? error.message : '加载失败')}</div>`
-    throw error
+async function expandAndLoadDirectory(path) {
+  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(path)}"]`)
+  const node = row?.closest('.tree-node')
+  const childContainer = node?.querySelector('.tree-children')
+  if (!row || !node || !childContainer) {
+    return
   }
+
+  const depth = Number(row.style.getPropertyValue('--depth') || '0')
+  node.classList.add('expanded')
+  node.dataset.loaded = '1'
+  updateDirectoryRowIcon(row, true)
+  await reloadDirectory(path, childContainer, depth + 1)
+  treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
+}
+
+async function expandPathInTree(path) {
+  if (!path) {
+    return
+  }
+
+  const segments = path.split('/')
+  let current = ''
+  for (const segment of segments) {
+    current = current ? `${current}/${segment}` : segment
+    await expandAndLoadDirectory(current)
+  }
+}
+
+function getDirectoryContainerInfo(path) {
+  if (!path) {
+    return { container: fileTreeEl, depth: 0 }
+  }
+
+  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(path)}"]`)
+  const node = row?.closest('.tree-node')
+  const container = node?.querySelector('.tree-children')
+  if (!row || !container) {
+    return null
+  }
+
+  return {
+    container,
+    depth: Number(row.style.getPropertyValue('--depth') || '0') + 1,
+  }
+}
+
+async function reloadDirectoryContainer(path) {
+  const expandedPaths = collectExpandedDirectoryPaths()
+  const info = getDirectoryContainerInfo(path)
+  if (!info) {
+    return
+  }
+
+  await reloadDirectory(path, info.container, info.depth)
+
+  for (const expandedPath of expandedPaths) {
+    if (!path || expandedPath === path || expandedPath.startsWith(`${path}/`)) {
+      await expandAndLoadDirectory(expandedPath)
+    }
+  }
+
+  treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
+}
+
+async function refreshTreeAt(parentPath) {
+  if (!parentPath) {
+    const expandedPaths = collectExpandedDirectoryPaths()
+    await reloadDirectory('', fileTreeEl, 0)
+    for (const expandedPath of expandedPaths) {
+      await expandAndLoadDirectory(expandedPath)
+    }
+    treeDirectoryFingerprints.set('', await fetchDirectoryFingerprint(''))
+    return
+  }
+
+  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(parentPath)}"]`)
+  const node = row?.closest('.tree-node')
+  if (!row || !node) {
+    await refreshTreeAt('')
+    return
+  }
+
+  const depth = Number(row.style.getPropertyValue('--depth') || '0')
+  const childContainer = node.querySelector('.tree-children')
+  if (!childContainer) {
+    return
+  }
+
+  node.classList.add('expanded')
+  updateDirectoryRowIcon(row, true)
+  node.dataset.loaded = '1'
+  await reloadDirectory(parentPath, childContainer, depth + 1)
+  treeDirectoryFingerprints.set(parentPath, await fetchDirectoryFingerprint(parentPath))
 }
 
 async function checkDirectoryExists(path) {
@@ -802,25 +1011,30 @@ async function checkDirectoryExists(path) {
   }
 }
 
-async function refreshTreeAt(_parentPath) {
-  await navigateTreeTo(treeViewPath)
-}
-
 function fingerprintEntries(entries) {
   return entries.map((entry) => `${entry.type}:${entry.path}`).join('\n')
 }
 
 async function fetchDirectoryFingerprint(path) {
   const data = await fetchJson(`/api/files?path=${encodeURIComponent(path)}`)
-  return fingerprintEntries(data.entries)
+  const entries = path === '' ? filterRootEntries(data.entries) : data.entries
+  return fingerprintEntries(entries)
 }
 
 async function initFileTree() {
   fileTreeEl.innerHTML = '<div class="editor-empty" style="height:auto;padding:16px">加载文件树…</div>'
 
   try {
+    fileTreeEl.innerHTML = ''
+    setTreeScope('focus')
+    await loadDirectory('', fileTreeEl, 0)
+    treeDirectoryFingerprints.set('', await fetchDirectoryFingerprint(''))
+
     const defaultPath = await checkDirectoryExists(DEFAULT_TREE_PATH) ? DEFAULT_TREE_PATH : ''
-    await navigateTreeTo(defaultPath)
+    if (defaultPath) {
+      await expandPathInTree(defaultPath)
+    }
+    setTreeViewPath(defaultPath)
   } catch (error) {
     fileTreeEl.innerHTML = `<div class="editor-empty" style="height:auto;padding:16px;color:#f48771">${escapeHtml(error instanceof Error ? error.message : '加载失败')}</div>`
   }
@@ -844,12 +1058,26 @@ async function refreshFileTree() {
 
   fileTreeRefreshing = true
   try {
-    const nextFingerprint = await fetchDirectoryFingerprint(treeViewPath)
-    if (treeDirectoryFingerprints.get(treeViewPath) === nextFingerprint) {
+    const watchPaths = ['', ...collectExpandedDirectoryPaths()]
+    /** @type {string[]} */
+    const changedPaths = []
+
+    for (const path of watchPaths) {
+      const nextFingerprint = await fetchDirectoryFingerprint(path)
+      if (treeDirectoryFingerprints.get(path) !== nextFingerprint) {
+        changedPaths.push(path)
+      }
+    }
+
+    if (changedPaths.length === 0) {
       return
     }
 
-    await navigateTreeTo(treeViewPath)
+    changedPaths.sort((a, b) => a.split('/').length - b.split('/').length)
+
+    for (const path of changedPaths) {
+      await reloadDirectoryContainer(path)
+    }
 
     if (activeFilePath) {
       markActiveFile(activeFilePath)
@@ -903,13 +1131,34 @@ function connectFileTreeWatch() {
   })
 }
 
+function isPathInFocusTree(path) {
+  if (!path) {
+    return true
+  }
+  if (path === 'CLAUDE.md') {
+    return true
+  }
+  if (path === 'work' || path.startsWith('work/')) {
+    return true
+  }
+  if (path === '.claude' || path.startsWith('.claude/')) {
+    return true
+  }
+  return false
+}
+
 async function restoreLastOpenedFile() {
   const path = localStorage.getItem(LAST_FILE_STORAGE_KEY)
   if (!path) {
     return
   }
 
-  await navigateTreeTo(getParentPath(path))
+  if (!isPathInFocusTree(path)) {
+    await showFullProjectTree()
+  }
+
+  await expandPathInTree(getParentPath(path))
+  setTreeViewPath(getParentPath(path))
 
   try {
     await openFile(path)
@@ -1116,9 +1365,11 @@ async function init() {
   })
 
   fileTreeNavAllBtn?.addEventListener('click', () => {
-    if (treeViewPath !== '') {
-      navigateTreeTo('')
-    }
+    void toggleTreeScope()
+  })
+
+  fileTreeNavUpBtn?.addEventListener('click', () => {
+    navigateTreeUp()
   })
 
   terminalModeShellBtn?.addEventListener('click', () => {
