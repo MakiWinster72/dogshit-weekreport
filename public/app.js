@@ -744,6 +744,136 @@ async function initFileTree() {
   }
 }
 
+/** @type {WebSocket | null} */
+let fileTreeSocket = null
+
+/** @type {ReturnType<typeof setTimeout> | null} */
+let fileTreeReconnectTimer = null
+
+/** @type {ReturnType<typeof setInterval> | null} */
+let fileTreePollTimer = null
+
+/** @type {ReturnType<typeof setTimeout> | null} */
+let fileTreeRefreshTimer = null
+
+let fileTreeRefreshing = false
+
+function collectExpandedDirectoryPaths() {
+  /** @type {string[]} */
+  const paths = []
+  fileTreeEl.querySelectorAll('.tree-node.directory.expanded').forEach((node) => {
+    const row = node.querySelector('.tree-row.directory')
+    const path = row?.dataset.path
+    if (path !== undefined) {
+      paths.push(path)
+    }
+  })
+  return paths.sort((a, b) => a.split('/').length - b.split('/').length)
+}
+
+async function expandAndLoadDirectory(path) {
+  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(path)}"]`)
+  const node = row?.closest('.tree-node')
+  const childContainer = node?.querySelector('.tree-children')
+  if (!row || !node || !childContainer) {
+    return
+  }
+
+  const depth = Number(row.style.getPropertyValue('--depth') || '0')
+  node.classList.add('expanded')
+  node.dataset.loaded = '1'
+  updateDirectoryRowIcon(row, true)
+  await reloadDirectory(path, childContainer, depth + 1)
+}
+
+async function refreshFileTree() {
+  if (fileTreeRefreshing || !createDialogEl.classList.contains('hidden')) {
+    return
+  }
+
+  fileTreeRefreshing = true
+  try {
+    const expandedPaths = collectExpandedDirectoryPaths()
+    await reloadDirectory('', fileTreeEl, 0)
+    for (const path of expandedPaths) {
+      await expandAndLoadDirectory(path)
+    }
+    if (activeFilePath) {
+      markActiveFile(activeFilePath)
+    }
+  } catch {
+    // 后台刷新失败时静默忽略，避免打断当前操作
+  } finally {
+    fileTreeRefreshing = false
+  }
+}
+
+function scheduleFileTreeRefresh() {
+  if (fileTreeRefreshTimer) {
+    clearTimeout(fileTreeRefreshTimer)
+  }
+  fileTreeRefreshTimer = setTimeout(() => {
+    fileTreeRefreshTimer = null
+    void refreshFileTree()
+  }, 300)
+}
+
+function startFileTreePolling() {
+  if (fileTreePollTimer) {
+    return
+  }
+  fileTreePollTimer = setInterval(() => {
+    if (document.hidden) {
+      return
+    }
+    scheduleFileTreeRefresh()
+  }, 3000)
+}
+
+function stopFileTreePolling() {
+  if (!fileTreePollTimer) {
+    return
+  }
+  clearInterval(fileTreePollTimer)
+  fileTreePollTimer = null
+}
+
+function connectFileTreeWatch() {
+  if (fileTreeReconnectTimer) {
+    clearTimeout(fileTreeReconnectTimer)
+    fileTreeReconnectTimer = null
+  }
+
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  fileTreeSocket = new WebSocket(`${protocol}//${location.host}/ws/tree`)
+
+  fileTreeSocket.addEventListener('open', () => {
+    stopFileTreePolling()
+  })
+
+  fileTreeSocket.addEventListener('message', (event) => {
+    let message
+    try {
+      message = JSON.parse(event.data)
+    } catch {
+      return
+    }
+
+    if (message.type === 'changed') {
+      scheduleFileTreeRefresh()
+    }
+  })
+
+  fileTreeSocket.addEventListener('close', () => {
+    startFileTreePolling()
+    fileTreeReconnectTimer = setTimeout(connectFileTreeWatch, 1500)
+  })
+
+  fileTreeSocket.addEventListener('error', () => {
+    startFileTreePolling()
+  })
+}
+
 function setTerminalStatus(state) {
   terminalStatusEl.className = `status-dot ${state}`
 }
@@ -993,6 +1123,13 @@ async function init() {
   })
 
   void initFileTree()
+  connectFileTreeWatch()
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      scheduleFileTreeRefresh()
+    }
+  })
 }
 
 init()

@@ -6,6 +6,7 @@ import type { IPty } from 'node-pty'
 import * as pty from 'node-pty'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { FileAccessError, createProjectDirectory, createProjectFile, deleteProjectEntry, listDirectory, readProjectFile, writeProjectFile } from './files.js'
+import { watchProjectDirectory } from './fileWatch.js'
 import { buildShellEnv, getDefaultShell } from './shell.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -215,13 +216,46 @@ export async function startWorkspaceServer(options: WorkspaceServerOptions): Pro
 
   const server: Server = createServer(app)
   const wss = new WebSocketServer({ server, path: '/ws' })
+  const treeWss = new WebSocketServer({ server, path: '/ws/tree' })
   const cleanups = new Set<() => void>()
+  const treeClients = new Set<WebSocket>()
+  let fileWatchCleanup: (() => void) | null = null
+
+  const broadcastTreeChange = () => {
+    const payload = JSON.stringify({ type: 'changed' })
+    for (const client of treeClients) {
+      if (client.readyState === client.OPEN) {
+        client.send(payload)
+      }
+    }
+  }
+
+  const ensureFileWatcher = () => {
+    if (fileWatchCleanup) {
+      return
+    }
+    fileWatchCleanup = watchProjectDirectory(cwd, broadcastTreeChange)
+    cleanups.add(fileWatchCleanup)
+  }
 
   wss.on('connection', (ws) => {
     const cleanup = attachTerminal(ws, cwd, shell)
     cleanups.add(cleanup)
     ws.on('close', () => {
       cleanups.delete(cleanup)
+    })
+  })
+
+  treeWss.on('connection', (ws) => {
+    ensureFileWatcher()
+    treeClients.add(ws)
+    ws.on('close', () => {
+      treeClients.delete(ws)
+      if (treeClients.size === 0 && fileWatchCleanup) {
+        fileWatchCleanup()
+        cleanups.delete(fileWatchCleanup)
+        fileWatchCleanup = null
+      }
     })
   })
 
@@ -254,12 +288,18 @@ export async function startWorkspaceServer(options: WorkspaceServerOptions): Pro
             reject(wssError)
             return
           }
-          server.close((serverError) => {
-            if (serverError) {
-              reject(serverError)
+          treeWss.close((treeWssError) => {
+            if (treeWssError) {
+              reject(treeWssError)
               return
             }
-            resolve()
+            server.close((serverError) => {
+              if (serverError) {
+                reject(serverError)
+                return
+              }
+              resolve()
+            })
           })
         })
       }),

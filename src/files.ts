@@ -1,7 +1,7 @@
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join, relative, resolve, sep } from 'node:path'
 
-const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist'])
+export const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist'])
 const MAX_FILE_BYTES = 1024 * 1024
 
 export interface FileEntry {
