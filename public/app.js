@@ -59,6 +59,39 @@ function escapeHtml(text) {
 
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx']
 
+const THEMES = ['dark', 'light', 'one-dark']
+let currentThemeIndex = 0
+
+function getCssVariable(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
+function applyTheme(themeName) {
+  if (themeName === 'dark') {
+    document.documentElement.removeAttribute('data-theme')
+  } else {
+    document.documentElement.setAttribute('data-theme', themeName)
+  }
+  
+  if (term) {
+    term.options.theme = {
+      background: getCssVariable('--bg-primary') || '#1e1e1e',
+      foreground: getCssVariable('--text-primary') || '#cccccc',
+      cursor: getCssVariable('--text-strong') || '#ffffff',
+      selectionBackground: getCssVariable('--term-selection') || '#264f78',
+    }
+  }
+
+  document.querySelectorAll('.theme-circle').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === themeName)
+  })
+}
+
+function toggleTheme() {
+  currentThemeIndex = (currentThemeIndex + 1) % THEMES.length
+  applyTheme(THEMES[currentThemeIndex])
+}
+
 function isMarkdownFile(path) {
   const lower = path.toLowerCase()
   return MARKDOWN_EXTENSIONS.some((ext) => lower.endsWith(ext))
@@ -568,10 +601,10 @@ function initTerminal() {
     fontSize: 13,
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     theme: {
-      background: '#1e1e1e',
-      foreground: '#cccccc',
-      cursor: '#ffffff',
-      selectionBackground: '#264f78',
+      background: getCssVariable('--bg-primary') || '#1e1e1e',
+      foreground: getCssVariable('--text-primary') || '#cccccc',
+      cursor: getCssVariable('--text-strong') || '#ffffff',
+      selectionBackground: getCssVariable('--term-selection') || '#264f78',
     },
     allowProposedApi: true,
   })
@@ -684,6 +717,12 @@ async function init() {
   })
 
   document.addEventListener('keydown', (event) => {
+    if (event.altKey && event.key.toLowerCase() === 't') {
+      event.preventDefault()
+      toggleTheme()
+      return
+    }
+
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
       if (!activeFilePath || activeFileIsBinary || !isEditorDirty()) {
         return
@@ -743,6 +782,13 @@ async function init() {
 
   createInputEl.addEventListener('input', () => {
     createErrorEl.textContent = ''
+  })
+
+  document.querySelectorAll('.theme-circle').forEach((btn, index) => {
+    btn.addEventListener('click', () => {
+      currentThemeIndex = index
+      applyTheme(btn.dataset.theme)
+    })
   })
 
   try {
