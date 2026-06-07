@@ -384,9 +384,9 @@ body {
 .editor-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin-left: auto;
-  padding-right: 8px;
+  padding-right: 12px;
   flex-shrink: 0;
 }
 
@@ -396,49 +396,72 @@ body {
 
 .editor-mode-switch {
   display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  overflow: hidden;
+  padding: 2px;
+  gap: 2px;
 }
 
 .editor-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   padding: 4px 10px;
   font: inherit;
   font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .editor-mode-btn:hover {
-  background: var(--item-hover);
   color: var(--text-primary);
 }
 
 .editor-mode-btn.active {
-  background: var(--item-active);
+  background: var(--item-hover);
   color: var(--text-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .editor-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   border-radius: 6px;
   background: var(--btn-primary-bg);
   color: var(--text-strong);
-  padding: 4px 12px;
+  padding: 5px 12px;
   font: inherit;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .editor-save-btn:hover:not(:disabled) {
   background: var(--btn-primary-hover);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.editor-save-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
 
 .editor-save-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
+  filter: grayscale(100%);
+  box-shadow: none;
 }
 
 .editor-tab {

@@ -323,6 +323,8 @@ function renderEditorEdit() {
   editorBodyEl.innerHTML = ''
   editorBodyEl.appendChild(textarea)
   textarea.focus()
+  textarea.setSelectionRange(0, 0)
+  textarea.scrollTop = 0
 }
 
 function setEditorMode(mode) {
