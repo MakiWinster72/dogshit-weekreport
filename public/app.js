@@ -19,6 +19,38 @@ let terminalSocket = null
 /** @type {ReturnType<typeof setTimeout> | null} */
 let reconnectTimer = null
 
+function escapeHtml(text) {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx']
+
+function isMarkdownFile(path) {
+  const lower = path.toLowerCase()
+  return MARKDOWN_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
+function renderMarkdown(content) {
+  if (typeof marked === 'undefined') {
+    return escapeHtml(content)
+  }
+
+  marked.setOptions({
+    gfm: true,
+    breaks: true,
+  })
+
+  const html = marked.parse(content)
+  if (typeof DOMPurify !== 'undefined') {
+    return DOMPurify.sanitize(html)
+  }
+  return html
+}
+
 async function fetchJson(url) {
   const response = await fetch(url)
   const data = await response.json()
@@ -26,14 +58,6 @@ async function fetchJson(url) {
     throw new Error(data.error ?? '请求失败')
   }
   return data
-}
-
-function escapeHtml(text) {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
 }
 
 function renderLineNumbers(content) {
@@ -66,6 +90,11 @@ function setEditorContent(path, content) {
   `
 }
 
+function setEditorMarkdown(path, content) {
+  editorTabEl.textContent = path
+  editorBodyEl.innerHTML = `<article class="markdown-body">${renderMarkdown(content)}</article>`
+}
+
 function markActiveFile(path) {
   document.querySelectorAll('.tree-row.file.active').forEach((node) => {
     node.classList.remove('active')
@@ -85,7 +114,11 @@ async function openFile(path) {
       setEditorBinary(file.path, file.size)
       return
     }
-    setEditorContent(file.path, file.content)
+    if (isMarkdownFile(file.path)) {
+      setEditorMarkdown(file.path, file.content)
+    } else {
+      setEditorContent(file.path, file.content)
+    }
   } catch (error) {
     setEditorError(error instanceof Error ? error.message : '读取文件失败')
   }
