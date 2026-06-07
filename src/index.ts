@@ -2,6 +2,7 @@
 
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
+import { loadEnvFile, readAppEnvConfig } from './env.js'
 import { startWorkspaceServer } from './server.js'
 
 const DEFAULT_PORT = 4721
@@ -17,10 +18,10 @@ function openInBrowser(url: string): void {
   spawn(launcher.command, launcher.args, { detached: true, stdio: 'ignore' }).unref()
 }
 
-function parseArgs(argv: string[]): { cwd: string; port: number; openBrowser: boolean } {
+function parseArgs(argv: string[]): { cwd: string; port?: number; openBrowser: boolean } {
   const args = [...argv]
   let cwd = process.cwd()
-  let port = DEFAULT_PORT
+  let port: number | undefined
   let openBrowser = true
 
   while (args.length > 0) {
@@ -63,16 +64,29 @@ function printHelp(): void {
   weekreport-term [--cwd <path>] [--port <number>] [--no-open]
 
 选项:
-  --cwd      项目根目录，默认为当前目录
-  --port     监听端口，默认 ${DEFAULT_PORT}
+  --cwd      项目根目录，默认为当前目录（从此目录读取 .env）
+  --port     监听端口，默认 ${DEFAULT_PORT}（.env 中 DWR_PORT 次之）
   --no-open  启动后不自动打开浏览器
   -h         显示帮助
+
+环境变量（见 .env.example）:
+  DWR_HOST         监听地址，默认 127.0.0.1
+  DWR_PORT         服务端口
+  DWR_ALLOWED_IPS  允许访问的客户端 IP，逗号分隔
+  ANTHROPIC_API_KEY  对话模式 Claude CLI 使用的密钥
 `)
 }
 
 async function main(): Promise<void> {
-  const { cwd, port, openBrowser } = parseArgs(process.argv.slice(2))
-  const handle = await startWorkspaceServer({ cwd, port })
+  const { cwd, port: portArg, openBrowser } = parseArgs(process.argv.slice(2))
+  loadEnvFile(cwd)
+  const { host, port, allowedIps } = readAppEnvConfig(portArg)
+
+  if (host === '0.0.0.0' && allowedIps.length === 0) {
+    console.warn('警告: DWR_HOST=0.0.0.0 但未配置 DWR_ALLOWED_IPS，仅允许本机 IP 访问')
+  }
+
+  const handle = await startWorkspaceServer({ cwd, port, host, allowedIps })
 
   console.log('')
   console.log('  项目工作台已启动')

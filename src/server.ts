@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http'
+import type { Socket } from 'node:net'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
@@ -8,6 +9,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { FileAccessError, createProjectDirectory, createProjectFile, deleteProjectEntry, listDirectory, readProjectFile, writeProjectFile } from './files.js'
 import { watchProjectDirectory } from './fileWatch.js'
 import { buildShellEnv, getDefaultShell } from './shell.js'
+import { buildClaudeShellEnv, isClientIpAllowed, normalizeClientIp } from './env.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -15,6 +17,7 @@ export interface WorkspaceServerOptions {
   cwd: string
   port?: number
   host?: string
+  allowedIps?: string[]
 }
 
 export interface WorkspaceServerHandle {
@@ -108,7 +111,10 @@ function attachTerminal(
       cols,
       rows,
       cwd,
-      env: buildShellEnv(cwd) as Record<string, string>,
+      env:
+        profile === 'claude'
+          ? (buildClaudeShellEnv(buildShellEnv(cwd)) as Record<string, string>)
+          : (buildShellEnv(cwd) as Record<string, string>),
     }
 
     const ptyProcess =
@@ -226,11 +232,24 @@ function sendFileError(res: express.Response, error: unknown): void {
 export async function startWorkspaceServer(options: WorkspaceServerOptions): Promise<WorkspaceServerHandle> {
   const cwd = options.cwd
   const host = options.host ?? '127.0.0.1'
+  const allowedIps = options.allowedIps ?? []
   const shell = getDefaultShell()
   const app = express()
   const publicDir = resolvePublicDir()
 
+  const rejectClient = (remoteAddress: string | undefined): boolean => {
+    return !isClientIpAllowed(normalizeClientIp(remoteAddress), allowedIps)
+  }
+
   app.use(express.json({ limit: '16kb' }))
+
+  app.use((req, res, next) => {
+    if (rejectClient(req.socket.remoteAddress)) {
+      res.status(403).json({ error: '客户端 IP 不在允许列表中' })
+      return
+    }
+    next()
+  })
 
   app.get('/api/info', (_req, res) => {
     res.json({
@@ -322,8 +341,15 @@ export async function startWorkspaceServer(options: WorkspaceServerOptions): Pro
   let fileWatchCleanup: (() => void) | null = null
 
   server.on('upgrade', (request, socket, head) => {
-    const host = request.headers.host ?? '127.0.0.1'
-    const pathname = new URL(request.url ?? '/', `http://${host}`).pathname
+    const clientSocket = socket as Socket
+    if (rejectClient(clientSocket.remoteAddress)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
+      socket.destroy()
+      return
+    }
+
+    const reqHost = request.headers.host ?? '127.0.0.1'
+    const pathname = new URL(request.url ?? '/', `http://${reqHost}`).pathname
 
     if (pathname === '/ws') {
       wss.handleUpgrade(request, socket, head, (ws) => {

@@ -34,6 +34,15 @@ const confirmTitleEl = document.getElementById('confirm-title')
 const confirmMessageEl = document.getElementById('confirm-message')
 const confirmCancelEl = document.getElementById('confirm-cancel')
 const confirmOkEl = document.getElementById('confirm-ok')
+const mobileMenuBtn = document.getElementById('mobile-menu-btn')
+const mobileBackdropEl = document.getElementById('mobile-backdrop')
+const mobileFabEl = document.getElementById('mobile-fab')
+const mobileFabBtn = document.getElementById('mobile-fab-btn')
+const mobileFabMenuEl = document.getElementById('mobile-fab-menu')
+const mobileFabClaudeBtn = document.getElementById('mobile-fab-claude')
+const mobileFabShellBtn = document.getElementById('mobile-fab-shell')
+
+const MOBILE_MQ = window.matchMedia('(max-width: 768px)')
 
 /** @type {string | null} */
 let activeFilePath = null
@@ -63,6 +72,164 @@ let reconnectTimer = null
 
 /** @type {'shell' | 'claude'} */
 let terminalProfile = 'shell'
+
+/** @type {'terminal' | 'editor'} */
+let mobileView = 'terminal'
+
+let mobileFilesOpen = false
+let mobileFabOpen = false
+
+function isMobileLayout() {
+  return MOBILE_MQ.matches
+}
+
+function getEditorEmptyHint() {
+  return isMobileLayout() ? '点击左上角 ☰ 打开文件' : '从左侧选择文件以预览内容'
+}
+
+function updateMobileDom() {
+  const mobile = isMobileLayout()
+  document.body.classList.toggle('is-mobile', mobile)
+  mobileFabEl?.classList.toggle('hidden', !mobile)
+
+  if (!mobile) {
+    document.body.classList.remove('mobile-files-open')
+    mobileFilesOpen = false
+    mobileFabOpen = false
+    mobileFabMenuEl?.classList.add('hidden')
+    mobileBackdropEl?.classList.add('hidden')
+    mobileFabBtn?.classList.remove('is-open')
+    mobileFabBtn?.setAttribute('aria-expanded', 'false')
+    document.body.removeAttribute('data-mobile-view')
+    return
+  }
+
+  document.body.dataset.mobileView = mobileView
+  document.body.classList.toggle('mobile-files-open', mobileFilesOpen)
+  mobileBackdropEl?.classList.toggle('hidden', !mobileFilesOpen)
+}
+
+function setMobileView(view) {
+  if (!isMobileLayout()) {
+    return
+  }
+
+  mobileView = view
+  closeMobileFiles()
+  closeMobileFabMenu()
+  updateMobileDom()
+
+  if (view === 'terminal') {
+    requestAnimationFrame(() => {
+      resizeTerminal()
+      term?.focus()
+    })
+  }
+}
+
+function openMobileFiles() {
+  if (!isMobileLayout()) {
+    return
+  }
+
+  mobileFilesOpen = true
+  updateMobileDom()
+}
+
+function closeMobileFiles() {
+  if (!mobileFilesOpen) {
+    return
+  }
+
+  mobileFilesOpen = false
+  updateMobileDom()
+}
+
+function toggleMobileFiles() {
+  if (mobileFilesOpen) {
+    closeMobileFiles()
+    return
+  }
+
+  openMobileFiles()
+}
+
+function closeMobileFabMenu() {
+  if (!mobileFabOpen) {
+    return
+  }
+
+  mobileFabOpen = false
+  mobileFabMenuEl?.classList.add('hidden')
+  mobileFabBtn?.classList.remove('is-open')
+  mobileFabBtn?.setAttribute('aria-expanded', 'false')
+}
+
+function toggleMobileFabMenu() {
+  mobileFabOpen = !mobileFabOpen
+  mobileFabMenuEl?.classList.toggle('hidden', !mobileFabOpen)
+  mobileFabBtn?.classList.toggle('is-open', mobileFabOpen)
+  mobileFabBtn?.setAttribute('aria-expanded', mobileFabOpen ? 'true' : 'false')
+}
+
+function goMobileTerminal(profile) {
+  closeMobileFabMenu()
+  setMobileView('terminal')
+  setTerminalMode(profile)
+}
+
+function handleMobileLayoutChange() {
+  if (isMobileLayout() && mobileView !== 'editor') {
+    mobileView = 'terminal'
+  }
+
+  updateMobileDom()
+  requestAnimationFrame(() => {
+    resizeTerminal()
+  })
+}
+
+function initMobileLayout() {
+  if (isMobileLayout()) {
+    terminalProfile = 'claude'
+    mobileView = 'terminal'
+  }
+
+  updateMobileDom()
+
+  MOBILE_MQ.addEventListener('change', handleMobileLayoutChange)
+
+  mobileMenuBtn?.addEventListener('click', () => {
+    toggleMobileFiles()
+  })
+
+  mobileBackdropEl?.addEventListener('click', () => {
+    closeMobileFiles()
+  })
+
+  mobileFabBtn?.addEventListener('click', (event) => {
+    event.stopPropagation()
+    toggleMobileFabMenu()
+  })
+
+  mobileFabClaudeBtn?.addEventListener('click', (event) => {
+    event.stopPropagation()
+    goMobileTerminal('claude')
+  })
+
+  mobileFabShellBtn?.addEventListener('click', (event) => {
+    event.stopPropagation()
+    goMobileTerminal('shell')
+  })
+
+  mobileFabMenuEl?.addEventListener('click', (event) => {
+    event.stopPropagation()
+  })
+
+  document.addEventListener('click', () => {
+    closeMobileFabMenu()
+  })
+}
 
 function escapeHtml(text) {
   return text
@@ -360,7 +527,7 @@ async function submitDelete() {
   closeDeleteConfirm()
 
   if (shouldClearEditor(entry.path)) {
-    setEditorEmpty('从左侧选择文件以预览内容')
+    setEditorEmpty(getEditorEmptyHint())
   }
 
   await refreshTreeAt(parentPath)
@@ -702,10 +869,18 @@ async function openFile(path) {
     const file = await fetchJson(`/api/file?path=${encodeURIComponent(path)}`)
     if (file.binary) {
       setEditorBinary(file.path, file.size)
+      if (isMobileLayout()) {
+        closeMobileFiles()
+        setMobileView('editor')
+      }
       return
     }
     loadEditableFile(file.path, file.content)
     localStorage.setItem(LAST_FILE_STORAGE_KEY, path)
+    if (isMobileLayout()) {
+      closeMobileFiles()
+      setMobileView('editor')
+    }
   } catch (error) {
     resetEditorState()
     setEditorError(error instanceof Error ? error.message : '读取文件失败')
@@ -1148,6 +1323,10 @@ function isPathInFocusTree(path) {
 }
 
 async function restoreLastOpenedFile() {
+  if (isMobileLayout()) {
+    return
+  }
+
   const path = localStorage.getItem(LAST_FILE_STORAGE_KEY)
   if (!path) {
     return
@@ -1203,12 +1382,19 @@ function applyTerminalSession(message) {
 
 function setTerminalMode(profile) {
   if (terminalProfile === profile) {
+    if (isMobileLayout()) {
+      setMobileView('terminal')
+    }
     term?.focus()
     return
   }
 
   terminalProfile = profile
   updateTerminalModeUI()
+
+  if (isMobileLayout()) {
+    setMobileView('terminal')
+  }
 
   if (terminalSocket?.readyState === WebSocket.OPEN) {
     fitAddon?.fit()
@@ -1353,6 +1539,7 @@ function connectTerminal() {
 
 async function init() {
   loadStoredTheme()
+  initMobileLayout()
   updateTerminalModeUI()
   initTerminal()
   initPanelResizers()
@@ -1532,12 +1719,14 @@ async function init() {
     projectPathEl.textContent = '—'
   }
 
-  setEditorEmpty('从左侧选择文件以预览内容')
+  setEditorEmpty(getEditorEmptyHint())
   connectTerminal()
 
   requestAnimationFrame(() => {
     resizeTerminal()
-    term?.focus()
+    if (!isMobileLayout()) {
+      term?.focus()
+    }
   })
 
   void initFileTree().then(async () => {
