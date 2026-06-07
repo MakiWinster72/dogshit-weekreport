@@ -527,6 +527,27 @@ body.is-resizing * {
   color: var(--text-primary);
 }
 
+.editor-fullscreen-btn {
+  width: auto;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.editor-mode-group,
+.terminal-header-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-shortcut-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  user-select: none;
+  flex-shrink: 0;
+}
+
 .editor-mode-switch {
   display: inline-flex;
   align-items: center;

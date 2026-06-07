@@ -75,10 +75,11 @@ const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx']
 const MARKDOWN_TASK_ITEM_RE = /^\s*[-*+]\s+\[[ xX]\]/
 
 const THEMES = ['dark', 'light', 'one-dark']
+const DEFAULT_THEME = 'one-dark'
 const THEME_STORAGE_KEY = 'dwr-theme'
 const LAST_FILE_STORAGE_KEY = 'dwr-last-file'
 const DEFAULT_TREE_PATH = 'work'
-let currentThemeIndex = 0
+let currentThemeIndex = THEMES.indexOf(DEFAULT_THEME)
 
 /** @type {string} */
 let treeViewPath = DEFAULT_TREE_PATH
@@ -117,7 +118,7 @@ function applyTheme(themeName, options = { persist: true }) {
 
 function loadStoredTheme() {
   const saved = localStorage.getItem(THEME_STORAGE_KEY)
-  const themeName = saved && THEMES.includes(saved) ? saved : THEMES[0]
+  const themeName = saved && THEMES.includes(saved) ? saved : DEFAULT_THEME
   currentThemeIndex = THEMES.indexOf(themeName)
   applyTheme(themeName, { persist: false })
 }
@@ -604,6 +605,13 @@ function setEditorMode(mode) {
   updateEditorToolbar()
 }
 
+function toggleEditorMode() {
+  if (!activeFilePath || activeFileIsBinary) {
+    return
+  }
+  setEditorMode(editorMode === 'view' ? 'edit' : 'view')
+}
+
 async function saveActiveFile() {
   if (!activeFilePath || activeFileIsBinary || !isEditorDirty()) {
     return
@@ -967,6 +975,10 @@ function setTerminalMode(profile) {
   connectTerminal()
 }
 
+function toggleTerminalMode() {
+  setTerminalMode(terminalProfile === 'shell' ? 'claude' : 'shell')
+}
+
 function sendTerminal(message) {
   if (terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
     terminalSocket.send(JSON.stringify(message))
@@ -1157,20 +1169,42 @@ async function init() {
   })
 
   document.addEventListener('keydown', (event) => {
-    if (event.altKey && event.key.toLowerCase() === 't') {
+    if (!event.altKey || event.ctrlKey || event.metaKey) {
+      return
+    }
+
+    const key = event.key.toLowerCase()
+
+    if (key === 'd') {
       event.preventDefault()
       toggleTheme()
       return
     }
 
-    if (event.altKey && event.key.toLowerCase() === 'f') {
+    if (key === 's') {
+      event.preventDefault()
+      toggleTerminalMode()
+      return
+    }
+
+    if (key === 'e') {
+      if (!activeFilePath || activeFileIsBinary) {
+        return
+      }
+      event.preventDefault()
+      toggleEditorMode()
+      return
+    }
+
+    if (key === 'f') {
       event.preventDefault()
       if (activeFilePath && !activeFileIsBinary) {
         toggleFullscreen()
       }
-      return
     }
+  }, true)
 
+  document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
       if (!activeFilePath || activeFileIsBinary || !isEditorDirty()) {
         return

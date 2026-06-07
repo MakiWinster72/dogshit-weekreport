@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="one-dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -73,10 +73,10 @@
             <span class="file-tree-nav-path" id="file-tree-nav-path"></span>
           </div>
           <div class="file-tree" id="file-tree"></div>
-          <div class="theme-toggles" title="按 Alt+T 快捷切换主题">
+          <div class="theme-toggles" title="按 Alt+D 快捷切换主题">
             <button
               type="button"
-              class="theme-circle theme-dark active"
+              class="theme-circle theme-dark"
               data-theme="dark"
               aria-label="VS Code Dark"
             ></button>
@@ -88,11 +88,11 @@
             ></button>
             <button
               type="button"
-              class="theme-circle theme-one-dark"
+              class="theme-circle theme-one-dark active"
               data-theme="one-dark"
               aria-label="One Dark Pro"
             ></button>
-            <span class="theme-hint">Alt+T</span>
+            <span class="theme-hint">Alt+D</span>
           </div>
         </aside>
 
@@ -110,7 +110,7 @@
             <div class="editor-toolbar hidden" id="editor-toolbar">
               <button
                 type="button"
-                class="editor-icon-btn"
+                class="editor-icon-btn editor-fullscreen-btn"
                 id="editor-fullscreen"
                 title="全屏 (Alt+F)"
               >
@@ -139,14 +139,16 @@
                     d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"
                   />
                 </svg>
+                <span class="panel-shortcut-hint">Alt+F</span>
               </button>
-              <div class="editor-mode-switch">
-                <button
-                  type="button"
-                  class="editor-mode-btn active"
-                  id="editor-mode-view"
-                  title="查看模式 (Alt+V)"
-                >
+              <div class="editor-mode-group">
+                <div class="editor-mode-switch">
+                  <button
+                    type="button"
+                    class="editor-mode-btn active"
+                    id="editor-mode-view"
+                    title="查看模式"
+                  >
                   <svg
                     viewBox="0 0 24 24"
                     width="14"
@@ -164,7 +166,7 @@
                   type="button"
                   class="editor-mode-btn"
                   id="editor-mode-edit"
-                  title="编辑模式 (Alt+E)"
+                  title="编辑模式"
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -180,6 +182,8 @@
                   <span>编辑</span>
                 </button>
               </div>
+              <span class="panel-shortcut-hint">Alt+E</span>
+            </div>
               <button
                 type="button"
                 class="editor-save-btn"
@@ -217,21 +221,24 @@
 
         <aside class="terminal-pane">
           <div class="panel-header terminal-header">
-            <div class="editor-mode-switch terminal-mode-switch">
-              <button
-                type="button"
-                class="editor-mode-btn active"
-                id="terminal-mode-shell"
-              >
-                终端
-              </button>
-              <button
-                type="button"
-                class="editor-mode-btn"
-                id="terminal-mode-claude"
-              >
-                对话
-              </button>
+            <div class="terminal-header-main">
+              <div class="editor-mode-switch terminal-mode-switch">
+                <button
+                  type="button"
+                  class="editor-mode-btn active"
+                  id="terminal-mode-shell"
+                >
+                  终端
+                </button>
+                <button
+                  type="button"
+                  class="editor-mode-btn"
+                  id="terminal-mode-claude"
+                >
+                  对话
+                </button>
+              </div>
+              <span class="panel-shortcut-hint">Alt+S</span>
             </div>
             <span class="terminal-meta">
               <span id="shell-label">—</span>
