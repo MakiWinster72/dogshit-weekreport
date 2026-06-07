@@ -1,5 +1,23 @@
 
+@font-face {
+  font-family: 'Cousine Nerd Font Mono';
+  src: url('/fonts/CousineNerdFontMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS_Sans_SC_Medium.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
+  --font-ui: 'Cousine Nerd Font Mono', 'HarmonyOS Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Cousine Nerd Font Mono', 'HarmonyOS Sans SC', Menlo, Monaco, 'Courier New', monospace;
   /* VS Code Dark (Default) */
   --bg-primary: #1e1e1e;
   --bg-secondary: #252526;
@@ -97,7 +115,7 @@ body {
   height: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-ui);
   font-size: 13px;
 }
 
@@ -572,7 +590,7 @@ body.is-resizing * {
   display: grid;
   grid-template-columns: auto 1fr;
   min-height: 100%;
-  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -607,7 +625,7 @@ body.is-resizing * {
   padding: 12px 16px;
   background: var(--bg-primary);
   color: var(--text-code);
-  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.5;
   tab-size: 2;
@@ -687,7 +705,7 @@ body.is-resizing * {
   padding: 0.15em 0.35em;
   border-radius: 4px;
   background: var(--md-code-bg);
-  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.92em;
   color: var(--md-code);
 }

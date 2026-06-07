@@ -771,7 +771,7 @@ function initTerminal() {
   term = new Terminal({
     cursorBlink: true,
     fontSize: 13,
-    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+    fontFamily: "'Cousine Nerd Font Mono', 'HarmonyOS Sans SC', Menlo, Monaco, 'Courier New', monospace",
     theme: {
       background: getCssVariable('--bg-primary') || '#1e1e1e',
       foreground: getCssVariable('--text-primary') || '#cccccc',
