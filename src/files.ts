@@ -212,3 +212,30 @@ export async function deleteProjectEntry(root: string, relativePath: string): Pr
 
   await rm(absolute, { recursive: true, force: true })
 }
+
+export async function writeProjectFile(root: string, relativePath: string, content: string): Promise<{ path: string; size: number }> {
+  if (!relativePath.trim()) {
+    throw new FileAccessError('缺少文件路径', 400)
+  }
+
+  const bytes = Buffer.byteLength(content, 'utf8')
+  if (bytes > MAX_FILE_BYTES) {
+    throw new FileAccessError(`文件过大（>${MAX_FILE_BYTES / 1024 / 1024}MB）`, 413)
+  }
+
+  const absolute = resolveProjectPath(root, relativePath)
+  const stat = await lstat(absolute).catch(() => {
+    throw new FileAccessError('文件不存在', 404)
+  })
+
+  if (!stat.isFile()) {
+    throw new FileAccessError('目标不是文件', 400)
+  }
+
+  await writeFile(absolute, content, 'utf8')
+
+  return {
+    path: relative(root, absolute).split(sep).join('/'),
+    size: bytes,
+  }
+}

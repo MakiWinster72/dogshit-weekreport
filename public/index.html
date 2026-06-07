@@ -33,6 +33,13 @@
       <main class="editor-pane">
         <div class="editor-header">
           <span class="editor-tab active" id="editor-tab">未打开文件</span>
+          <div class="editor-toolbar hidden" id="editor-toolbar">
+            <div class="editor-mode-switch">
+              <button type="button" class="editor-mode-btn active" id="editor-mode-view">查看</button>
+              <button type="button" class="editor-mode-btn" id="editor-mode-edit">编辑</button>
+            </div>
+            <button type="button" class="editor-save-btn" id="editor-save" disabled>保存</button>
+          </div>
         </div>
         <div class="editor-body" id="editor-body">
           <div class="editor-empty">从左侧选择文件以预览内容</div>

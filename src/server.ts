@@ -5,7 +5,7 @@ import express from 'express'
 import type { IPty } from 'node-pty'
 import * as pty from 'node-pty'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { FileAccessError, createProjectDirectory, createProjectFile, deleteProjectEntry, listDirectory, readProjectFile } from './files.js'
+import { FileAccessError, createProjectDirectory, createProjectFile, deleteProjectEntry, listDirectory, readProjectFile, writeProjectFile } from './files.js'
 import { buildShellEnv, getDefaultShell } from './shell.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -185,6 +185,23 @@ export async function startWorkspaceServer(options: WorkspaceServerOptions): Pro
     try {
       await deleteProjectEntry(cwd, path)
       res.json({ ok: true })
+    } catch (error) {
+      sendFileError(res, error)
+    }
+  })
+
+  app.put('/api/file', async (req, res) => {
+    const path = typeof req.body?.path === 'string' ? req.body.path : ''
+    const content = typeof req.body?.content === 'string' ? req.body.content : null
+
+    if (content === null) {
+      res.status(400).json({ error: '缺少文件内容' })
+      return
+    }
+
+    try {
+      const file = await writeProjectFile(cwd, path, content)
+      res.json(file)
     } catch (error) {
       sendFileError(res, error)
     }

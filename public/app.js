@@ -2,6 +2,10 @@ const projectPathEl = document.getElementById('project-path')
 const fileTreeEl = document.getElementById('file-tree')
 const editorTabEl = document.getElementById('editor-tab')
 const editorBodyEl = document.getElementById('editor-body')
+const editorToolbarEl = document.getElementById('editor-toolbar')
+const editorModeViewBtn = document.getElementById('editor-mode-view')
+const editorModeEditBtn = document.getElementById('editor-mode-edit')
+const editorSaveBtn = document.getElementById('editor-save')
 const shellLabelEl = document.getElementById('shell-label')
 const terminalStatusEl = document.getElementById('terminal-status')
 const terminalContainerEl = document.getElementById('terminal')
@@ -22,6 +26,13 @@ const confirmOkEl = document.getElementById('confirm-ok')
 
 /** @type {string | null} */
 let activeFilePath = null
+
+/** @type {'view' | 'edit'} */
+let editorMode = 'view'
+
+let savedFileContent = ''
+let draftFileContent = ''
+let activeFileIsBinary = false
 
 /** @type {{ path: string; type: 'file' | 'directory'; name: string } | null} */
 let pendingDelete = null
@@ -211,7 +222,6 @@ async function submitDelete() {
   closeDeleteConfirm()
 
   if (shouldClearEditor(entry.path)) {
-    activeFilePath = null
     setEditorEmpty('从左侧选择文件以预览内容')
   }
 
@@ -224,33 +234,136 @@ function renderLineNumbers(content) {
   return `<div class="line-numbers">${numbers}</div>`
 }
 
-function setEditorEmpty(message) {
-  editorTabEl.textContent = '未打开文件'
-  editorBodyEl.innerHTML = `<div class="editor-empty">${escapeHtml(message)}</div>`
+function isEditorDirty() {
+  return draftFileContent !== savedFileContent
 }
 
-function setEditorError(message) {
-  editorBodyEl.innerHTML = `<div class="editor-error">${escapeHtml(message)}</div>`
+function syncDraftFromEditor() {
+  const textarea = editorBodyEl.querySelector('.editor-textarea')
+  if (textarea instanceof HTMLTextAreaElement) {
+    draftFileContent = textarea.value
+  }
 }
 
-function setEditorBinary(path, size) {
-  editorTabEl.textContent = path
-  editorBodyEl.innerHTML = `<div class="editor-binary">二进制文件，无法预览（${size} 字节）</div>`
+function updateEditorToolbar() {
+  if (!activeFilePath || activeFileIsBinary) {
+    editorToolbarEl.classList.add('hidden')
+    editorTabEl.textContent = activeFilePath ?? '未打开文件'
+    return
+  }
+
+  editorToolbarEl.classList.remove('hidden')
+  editorModeViewBtn.classList.toggle('active', editorMode === 'view')
+  editorModeEditBtn.classList.toggle('active', editorMode === 'edit')
+  editorSaveBtn.disabled = !isEditorDirty()
+  editorTabEl.textContent = isEditorDirty() ? `${activeFilePath} •` : activeFilePath
 }
 
-function setEditorContent(path, content) {
-  editorTabEl.textContent = path
+function renderEditorView() {
+  if (!activeFilePath) {
+    return
+  }
+
+  if (isMarkdownFile(activeFilePath)) {
+    editorBodyEl.innerHTML = `<article class="markdown-body">${renderMarkdown(draftFileContent)}</article>`
+    return
+  }
+
   editorBodyEl.innerHTML = `
     <div class="code-view">
-      ${renderLineNumbers(content)}
-      <pre class="code-content">${escapeHtml(content)}</pre>
+      ${renderLineNumbers(draftFileContent)}
+      <pre class="code-content">${escapeHtml(draftFileContent)}</pre>
     </div>
   `
 }
 
-function setEditorMarkdown(path, content) {
+function renderEditorEdit() {
+  const textarea = document.createElement('textarea')
+  textarea.className = 'editor-textarea'
+  textarea.spellcheck = false
+  textarea.value = draftFileContent
+  textarea.addEventListener('input', () => {
+    draftFileContent = textarea.value
+    updateEditorToolbar()
+  })
+
+  editorBodyEl.innerHTML = ''
+  editorBodyEl.appendChild(textarea)
+  textarea.focus()
+}
+
+function setEditorMode(mode) {
+  if (!activeFilePath || activeFileIsBinary) {
+    return
+  }
+
+  if (editorMode === 'edit' && mode === 'view') {
+    syncDraftFromEditor()
+  }
+
+  editorMode = mode
+  if (mode === 'view') {
+    renderEditorView()
+  } else {
+    renderEditorEdit()
+  }
+  updateEditorToolbar()
+}
+
+async function saveActiveFile() {
+  if (!activeFilePath || activeFileIsBinary || !isEditorDirty()) {
+    return
+  }
+
+  syncDraftFromEditor()
+  await fetchJson('/api/file', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: activeFilePath,
+      content: draftFileContent,
+    }),
+  })
+
+  savedFileContent = draftFileContent
+  updateEditorToolbar()
+}
+
+function resetEditorState() {
+  activeFilePath = null
+  savedFileContent = ''
+  draftFileContent = ''
+  activeFileIsBinary = false
+  editorMode = 'view'
+}
+
+function setEditorEmpty(message) {
+  resetEditorState()
+  editorTabEl.textContent = '未打开文件'
+  editorBodyEl.innerHTML = `<div class="editor-empty">${escapeHtml(message)}</div>`
+  updateEditorToolbar()
+}
+
+function setEditorError(message) {
+  editorBodyEl.innerHTML = `<div class="editor-error">${escapeHtml(message)}</div>`
+  updateEditorToolbar()
+}
+
+function setEditorBinary(path, size) {
+  activeFileIsBinary = true
   editorTabEl.textContent = path
-  editorBodyEl.innerHTML = `<article class="markdown-body">${renderMarkdown(content)}</article>`
+  editorBodyEl.innerHTML = `<div class="editor-binary">二进制文件，无法预览（${size} 字节）</div>`
+  updateEditorToolbar()
+}
+
+function loadEditableFile(path, content) {
+  activeFilePath = path
+  activeFileIsBinary = false
+  savedFileContent = content
+  draftFileContent = content
+  editorMode = 'view'
+  renderEditorView()
+  updateEditorToolbar()
 }
 
 function markActiveFile(path) {
@@ -262,10 +375,18 @@ function markActiveFile(path) {
 }
 
 async function openFile(path) {
+  if (activeFilePath && path !== activeFilePath && isEditorDirty()) {
+    const discard = window.confirm('当前文件有未保存的修改，是否丢弃并打开新文件？')
+    if (!discard) {
+      return
+    }
+  }
+
   activeFilePath = path
   markActiveFile(path)
   editorTabEl.textContent = path
   editorBodyEl.innerHTML = '<div class="editor-empty">加载中…</div>'
+  editorToolbarEl.classList.add('hidden')
 
   try {
     const file = await fetchJson(`/api/file?path=${encodeURIComponent(path)}`)
@@ -273,12 +394,9 @@ async function openFile(path) {
       setEditorBinary(file.path, file.size)
       return
     }
-    if (isMarkdownFile(file.path)) {
-      setEditorMarkdown(file.path, file.content)
-    } else {
-      setEditorContent(file.path, file.content)
-    }
+    loadEditableFile(file.path, file.content)
   } catch (error) {
+    resetEditorState()
     setEditorError(error instanceof Error ? error.message : '读取文件失败')
   }
 }
@@ -549,6 +667,32 @@ async function init() {
   })
   rootCreateFileBtn.addEventListener('click', () => {
     openCreateDialog('', 'file')
+  })
+
+  editorModeViewBtn.addEventListener('click', () => {
+    setEditorMode('view')
+  })
+
+  editorModeEditBtn.addEventListener('click', () => {
+    setEditorMode('edit')
+  })
+
+  editorSaveBtn.addEventListener('click', () => {
+    saveActiveFile().catch((error) => {
+      window.alert(error instanceof Error ? error.message : '保存失败')
+    })
+  })
+
+  document.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      if (!activeFilePath || activeFileIsBinary || !isEditorDirty()) {
+        return
+      }
+      event.preventDefault()
+      saveActiveFile().catch((error) => {
+        window.alert(error instanceof Error ? error.message : '保存失败')
+      })
+    }
   })
 
   confirmCancelEl.addEventListener('click', () => {
