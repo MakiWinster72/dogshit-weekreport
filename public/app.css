@@ -236,6 +236,46 @@ body.is-resizing * {
   opacity: 1;
 }
 
+.file-tree-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 6px;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.file-tree-nav-btn {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.file-tree-nav-btn:hover:not(.is-active) {
+  color: var(--text-secondary);
+}
+
+.file-tree-nav-btn.is-active {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.file-tree-nav-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .file-tree {
   flex: 1;
   overflow: auto;
@@ -329,6 +369,10 @@ body.is-resizing * {
 
 .tree-row.active {
   background: var(--item-active);
+}
+
+.tree-chevron.nav-indicator {
+  color: var(--text-muted);
 }
 
 .tree-chevron {

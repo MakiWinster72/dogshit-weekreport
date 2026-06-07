@@ -1,5 +1,7 @@
 const projectPathEl = document.getElementById('project-path')
 const fileTreeEl = document.getElementById('file-tree')
+const fileTreeNavAllBtn = document.getElementById('file-tree-nav-all')
+const fileTreeNavPathEl = document.getElementById('file-tree-nav-path')
 const editorTabEl = document.getElementById('editor-tab')
 const editorBodyEl = document.getElementById('editor-body')
 const editorToolbarEl = document.getElementById('editor-toolbar')
@@ -69,7 +71,11 @@ const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx']
 const THEMES = ['dark', 'light', 'one-dark']
 const THEME_STORAGE_KEY = 'dwr-theme'
 const LAST_FILE_STORAGE_KEY = 'dwr-last-file'
+const DEFAULT_TREE_PATH = 'work'
 let currentThemeIndex = 0
+
+/** @type {string} */
+let treeViewPath = DEFAULT_TREE_PATH
 
 /** @type {Map<string, string>} */
 const treeDirectoryFingerprints = new Map()
@@ -623,7 +629,7 @@ async function openFile(path) {
   }
 }
 
-function createTreeRow(entry, depth) {
+function createTreeRow(entry, depth, options = {}) {
   const row = document.createElement('div')
   row.className = `tree-row ${entry.type}`
   row.style.setProperty('--depth', String(depth))
@@ -632,8 +638,8 @@ function createTreeRow(entry, depth) {
 
   if (entry.type === 'directory') {
     const chevron = document.createElement('span')
-    chevron.className = 'tree-chevron'
-    chevron.textContent = '▸'
+    chevron.className = options.flat ? 'tree-chevron nav-indicator' : 'tree-chevron'
+    chevron.textContent = options.flat ? '›' : '▸'
     row.appendChild(chevron)
 
     const icon = document.createElement('span')
@@ -666,48 +672,60 @@ function createTreeRow(entry, depth) {
   return row
 }
 
-function updateDirectoryRowIcon(row, expanded) {
-  const iconEl = row.querySelector('.tree-icon')
-  const chevronEl = row.querySelector('.tree-chevron')
-  const dirName = row.dataset.path.split('/').pop() ?? ''
-  if (iconEl) {
-    iconEl.innerHTML = renderFileIcon(resolveDirectoryIconName(dirName, expanded))
+function updateTreeNavUI() {
+  if (!fileTreeNavAllBtn || !fileTreeNavPathEl) {
+    return
   }
-  if (chevronEl) {
-    chevronEl.textContent = expanded ? '▾' : '▸'
+
+  fileTreeNavAllBtn.classList.toggle('is-active', treeViewPath === '')
+  fileTreeNavPathEl.textContent = treeViewPath || 'work为周报文件夹'
+}
+
+async function loadDirectoryListing(path, container) {
+  const data = await fetchJson(`/api/files?path=${encodeURIComponent(path)}`)
+
+  for (const entry of data.entries) {
+    const row = createTreeRow(entry, 0, { flat: true })
+
+    if (entry.type === 'directory') {
+      row.addEventListener('click', () => {
+        navigateTreeTo(entry.path)
+      })
+    } else {
+      row.addEventListener('click', () => {
+        openFile(entry.path)
+      })
+    }
+
+    container.appendChild(row)
   }
 }
 
-async function reloadDirectory(path, container, depth) {
-  container.innerHTML = ''
-  await loadDirectory(path, container, depth)
+async function navigateTreeTo(path) {
+  treeViewPath = path
+  updateTreeNavUI()
+  fileTreeEl.innerHTML = ''
+
+  try {
+    await loadDirectoryListing(path, fileTreeEl)
+    treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
+  } catch (error) {
+    fileTreeEl.innerHTML = `<div class="editor-empty" style="height:auto;padding:16px;color:#f48771">${escapeHtml(error instanceof Error ? error.message : '加载失败')}</div>`
+    throw error
+  }
 }
 
-async function refreshTreeAt(parentPath) {
-  if (!parentPath) {
-    await reloadDirectory('', fileTreeEl, 0)
-    treeDirectoryFingerprints.set('', await fetchDirectoryFingerprint(''))
-    return
+async function checkDirectoryExists(path) {
+  try {
+    await fetchJson(`/api/files?path=${encodeURIComponent(path)}`)
+    return true
+  } catch {
+    return false
   }
+}
 
-  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(parentPath)}"]`)
-  const node = row?.closest('.tree-node')
-  if (!row || !node) {
-    await reloadDirectory('', fileTreeEl, 0)
-    return
-  }
-
-  const depth = Number(row.style.getPropertyValue('--depth') || '0')
-  const childContainer = node.querySelector('.tree-children')
-  if (!childContainer) {
-    return
-  }
-
-  node.classList.add('expanded')
-  updateDirectoryRowIcon(row, true)
-  node.dataset.loaded = '1'
-  await reloadDirectory(parentPath, childContainer, depth + 1)
-  treeDirectoryFingerprints.set(parentPath, await fetchDirectoryFingerprint(parentPath))
+async function refreshTreeAt(_parentPath) {
+  await navigateTreeTo(treeViewPath)
 }
 
 function fingerprintEntries(entries) {
@@ -719,99 +737,12 @@ async function fetchDirectoryFingerprint(path) {
   return fingerprintEntries(data.entries)
 }
 
-async function seedTreeFingerprints() {
-  treeDirectoryFingerprints.clear()
-  const paths = ['', ...collectExpandedDirectoryPaths()]
-  for (const path of paths) {
-    treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
-  }
-}
-
-function getDirectoryContainerInfo(path) {
-  if (!path) {
-    return { container: fileTreeEl, depth: 0 }
-  }
-
-  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(path)}"]`)
-  const node = row?.closest('.tree-node')
-  const container = node?.querySelector('.tree-children')
-  if (!row || !container) {
-    return null
-  }
-
-  return {
-    container,
-    depth: Number(row.style.getPropertyValue('--depth') || '0') + 1,
-  }
-}
-
-async function reloadDirectoryContainer(path) {
-  const expandedPaths = collectExpandedDirectoryPaths()
-  const info = getDirectoryContainerInfo(path)
-  if (!info) {
-    return
-  }
-
-  await reloadDirectory(path, info.container, info.depth)
-
-  for (const expandedPath of expandedPaths) {
-    if (!path || expandedPath === path || expandedPath.startsWith(`${path}/`)) {
-      await expandAndLoadDirectory(expandedPath)
-    }
-  }
-
-  treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
-}
-
-async function loadDirectory(path, container, depth) {
-  const data = await fetchJson(`/api/files?path=${encodeURIComponent(path)}`)
-
-  for (const entry of data.entries) {
-    const node = document.createElement('div')
-    node.className = 'tree-node'
-    if (entry.type === 'directory') {
-      node.classList.add('directory')
-    }
-
-    const row = createTreeRow(entry, depth)
-    node.appendChild(row)
-
-    if (entry.type === 'directory') {
-      const childContainer = document.createElement('div')
-      childContainer.className = 'tree-children'
-      node.appendChild(childContainer)
-
-      row.addEventListener('click', async (event) => {
-        event.stopPropagation()
-        const expanded = node.classList.toggle('expanded')
-        updateDirectoryRowIcon(row, expanded)
-
-        if (expanded && !node.dataset.loaded) {
-          node.dataset.loaded = '1'
-          try {
-            await loadDirectory(entry.path, childContainer, depth + 1)
-          } catch {
-            childContainer.innerHTML = `<div class="tree-row" style="--depth:${depth + 1};color:#f48771">加载失败</div>`
-          }
-        }
-      })
-    } else {
-      row.addEventListener('click', () => {
-        openFile(entry.path)
-      })
-    }
-
-    container.appendChild(node)
-  }
-}
-
 async function initFileTree() {
   fileTreeEl.innerHTML = '<div class="editor-empty" style="height:auto;padding:16px">加载文件树…</div>'
 
   try {
-    fileTreeEl.innerHTML = ''
-    await loadDirectory('', fileTreeEl, 0)
-    await seedTreeFingerprints()
+    const defaultPath = await checkDirectoryExists(DEFAULT_TREE_PATH) ? DEFAULT_TREE_PATH : ''
+    await navigateTreeTo(defaultPath)
   } catch (error) {
     fileTreeEl.innerHTML = `<div class="editor-empty" style="height:auto;padding:16px;color:#f48771">${escapeHtml(error instanceof Error ? error.message : '加载失败')}</div>`
   }
@@ -828,35 +759,6 @@ let fileTreeRefreshTimer = null
 
 let fileTreeRefreshing = false
 
-function collectExpandedDirectoryPaths() {
-  /** @type {string[]} */
-  const paths = []
-  fileTreeEl.querySelectorAll('.tree-node.directory.expanded').forEach((node) => {
-    const row = node.querySelector('.tree-row.directory')
-    const path = row?.dataset.path
-    if (path !== undefined) {
-      paths.push(path)
-    }
-  })
-  return paths.sort((a, b) => a.split('/').length - b.split('/').length)
-}
-
-async function expandAndLoadDirectory(path) {
-  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(path)}"]`)
-  const node = row?.closest('.tree-node')
-  const childContainer = node?.querySelector('.tree-children')
-  if (!row || !node || !childContainer) {
-    return
-  }
-
-  const depth = Number(row.style.getPropertyValue('--depth') || '0')
-  node.classList.add('expanded')
-  node.dataset.loaded = '1'
-  updateDirectoryRowIcon(row, true)
-  await reloadDirectory(path, childContainer, depth + 1)
-  treeDirectoryFingerprints.set(path, await fetchDirectoryFingerprint(path))
-}
-
 async function refreshFileTree() {
   if (fileTreeRefreshing || !createDialogEl.classList.contains('hidden')) {
     return
@@ -864,26 +766,12 @@ async function refreshFileTree() {
 
   fileTreeRefreshing = true
   try {
-    const watchPaths = ['', ...collectExpandedDirectoryPaths()]
-    /** @type {string[]} */
-    const changedPaths = []
-
-    for (const path of watchPaths) {
-      const nextFingerprint = await fetchDirectoryFingerprint(path)
-      if (treeDirectoryFingerprints.get(path) !== nextFingerprint) {
-        changedPaths.push(path)
-      }
-    }
-
-    if (changedPaths.length === 0) {
+    const nextFingerprint = await fetchDirectoryFingerprint(treeViewPath)
+    if (treeDirectoryFingerprints.get(treeViewPath) === nextFingerprint) {
       return
     }
 
-    changedPaths.sort((a, b) => a.split('/').length - b.split('/').length)
-
-    for (const path of changedPaths) {
-      await reloadDirectoryContainer(path)
-    }
+    await navigateTreeTo(treeViewPath)
 
     if (activeFilePath) {
       markActiveFile(activeFilePath)
@@ -943,13 +831,7 @@ async function restoreLastOpenedFile() {
     return
   }
 
-  const segments = path.split('/')
-  segments.pop()
-  let current = ''
-  for (const segment of segments) {
-    current = current ? `${current}/${segment}` : segment
-    await expandAndLoadDirectory(current)
-  }
+  await navigateTreeTo(getParentPath(path))
 
   try {
     await openFile(path)
@@ -1084,10 +966,16 @@ async function init() {
   initPanelResizers()
 
   rootCreateFolderBtn.addEventListener('click', () => {
-    openCreateDialog('', 'directory')
+    openCreateDialog(treeViewPath, 'directory')
   })
   rootCreateFileBtn.addEventListener('click', () => {
-    openCreateDialog('', 'file')
+    openCreateDialog(treeViewPath, 'file')
+  })
+
+  fileTreeNavAllBtn?.addEventListener('click', () => {
+    if (treeViewPath !== '') {
+      navigateTreeTo('')
+    }
   })
 
   editorFullscreenBtn.addEventListener('click', () => {
