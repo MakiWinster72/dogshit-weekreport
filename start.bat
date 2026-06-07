@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
 
@@ -34,13 +34,36 @@ if errorlevel 1 (
 
 where claude >nul 2>&1
 if errorlevel 1 (
-  echo [错误] 未检测到 claude 命令
+  echo [提示] 未检测到 claude 命令，将自动安装 Claude Code CLI。
   echo.
-  echo 请先安装 Claude Code CLI，安装后重新打开本脚本。
-  echo   https://docs.anthropic.com/en/docs/claude-code
+  set "PROXY_ADDR="
+  set /p PROXY_ADDR=请输入代理地址（不需要代理直接回车，例如 http://127.0.0.1:7890）: 
   echo.
-  pause
-  exit /b 1
+  echo [安装] 正在下载并安装，请稍候...
+  echo.
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-claude.ps1" -ProxyAddress "!PROXY_ADDR!"
+  if errorlevel 1 (
+    echo.
+    echo [错误] Claude Code CLI 安装失败，请检查网络或代理后重试。
+    echo        也可手动安装：https://docs.anthropic.com/en/docs/claude-code
+    echo.
+    pause
+    exit /b 1
+  )
+  echo.
+  echo [提示] 刷新 PATH 环境变量...
+  for /f "delims=" %%P in ('powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')"') do set "PATH=%%P"
+  where claude >nul 2>&1
+  if errorlevel 1 (
+    echo.
+    echo [错误] 安装脚本已执行，但当前窗口仍未找到 claude 命令。
+    echo        请关闭本窗口，重新双击 start.bat 再试。
+    echo.
+    pause
+    exit /b 1
+  )
+  echo [完成] Claude Code CLI 已就绪。
+  echo.
 )
 
 if not exist "node_modules\" (
