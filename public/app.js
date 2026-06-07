@@ -6,6 +6,25 @@ const shellLabelEl = document.getElementById('shell-label')
 const terminalStatusEl = document.getElementById('terminal-status')
 const terminalContainerEl = document.getElementById('terminal')
 const terminalPaneEl = document.querySelector('.terminal-pane')
+const createDialogEl = document.getElementById('create-dialog')
+const createFormEl = document.getElementById('create-form')
+const createTitleEl = document.getElementById('create-title')
+const createInputEl = document.getElementById('create-input')
+const createErrorEl = document.getElementById('create-error')
+const createCancelEl = document.getElementById('create-cancel')
+const rootCreateFolderBtn = document.getElementById('root-create-folder')
+const rootCreateFileBtn = document.getElementById('root-create-file')
+const confirmDialogEl = document.getElementById('confirm-dialog')
+const confirmTitleEl = document.getElementById('confirm-title')
+const confirmMessageEl = document.getElementById('confirm-message')
+const confirmCancelEl = document.getElementById('confirm-cancel')
+const confirmOkEl = document.getElementById('confirm-ok')
+
+/** @type {string | null} */
+let activeFilePath = null
+
+/** @type {{ path: string; type: 'file' | 'directory'; name: string } | null} */
+let pendingDelete = null
 
 /** @type {import('@xterm/xterm').Terminal | null} */
 let term = null
@@ -51,13 +70,152 @@ function renderMarkdown(content) {
   return html
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url)
+async function fetchJson(url, options) {
+  const response = await fetch(url, options)
   const data = await response.json()
   if (!response.ok) {
     throw new Error(data.error ?? '请求失败')
   }
   return data
+}
+
+/** @type {{ parentPath: string; type: 'file' | 'directory' } | null} */
+let pendingCreate = null
+
+function openCreateDialog(parentPath, type) {
+  pendingCreate = { parentPath, type }
+  createTitleEl.textContent = type === 'directory' ? '新建文件夹' : '新建文件'
+  createInputEl.value = ''
+  createErrorEl.textContent = ''
+  createInputEl.placeholder = type === 'directory' ? '文件夹名称' : '文件名称'
+  createDialogEl.classList.remove('hidden')
+  createInputEl.focus()
+}
+
+function closeCreateDialog() {
+  pendingCreate = null
+  createDialogEl.classList.add('hidden')
+  createInputEl.value = ''
+  createErrorEl.textContent = ''
+}
+
+async function submitCreate(name) {
+  if (!pendingCreate) {
+    return
+  }
+
+  const { parentPath, type } = pendingCreate
+  const data = await fetchJson('/api/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parentPath, name, type }),
+  })
+
+  closeCreateDialog()
+  await refreshTreeAt(parentPath)
+
+  if (data.entry.type === 'file') {
+    await openFile(data.entry.path)
+  }
+}
+
+function createTreeActionButton(action, title, onClick, options = {}) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = `tree-action-btn${options.danger ? ' danger' : ''}`
+  button.title = title
+  button.setAttribute('aria-label', title)
+
+  if (action === 'mkdir') {
+    button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>'
+  } else if (action === 'touch') {
+    button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7h-2v-2h-2v2H9v2h2v2h2v-2h2v-2z"/></svg>'
+  } else {
+    button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>'
+  }
+
+  button.addEventListener('click', (event) => {
+    event.stopPropagation()
+    onClick()
+  })
+
+  return button
+}
+
+function appendTreeRowActions(row, entry) {
+  const actions = document.createElement('div')
+  actions.className = 'tree-actions'
+
+  if (entry.type === 'directory') {
+    actions.append(
+      createTreeActionButton('mkdir', '新建文件夹', () => {
+        openCreateDialog(entry.path, 'directory')
+      }),
+      createTreeActionButton('touch', '新建文件', () => {
+        openCreateDialog(entry.path, 'file')
+      }),
+    )
+  }
+
+  actions.append(
+    createTreeActionButton('delete', '删除', () => {
+      openDeleteConfirm(entry)
+    }, { danger: true }),
+  )
+
+  row.appendChild(actions)
+}
+
+function getParentPath(path) {
+  const index = path.lastIndexOf('/')
+  return index === -1 ? '' : path.slice(0, index)
+}
+
+function openDeleteConfirm(entry) {
+  pendingDelete = entry
+  confirmTitleEl.textContent = entry.type === 'directory' ? '删除文件夹' : '删除文件'
+  confirmMessageEl.textContent =
+    entry.type === 'directory'
+      ? `确定删除文件夹「${entry.name}」及其全部内容？此操作不可撤销。`
+      : `确定删除文件「${entry.name}」？此操作不可撤销。`
+  confirmDialogEl.classList.remove('hidden')
+}
+
+function closeDeleteConfirm() {
+  pendingDelete = null
+  confirmDialogEl.classList.add('hidden')
+  confirmMessageEl.textContent = ''
+}
+
+function shouldClearEditor(deletedPath) {
+  if (!activeFilePath) {
+    return false
+  }
+  return activeFilePath === deletedPath || activeFilePath.startsWith(`${deletedPath}/`)
+}
+
+async function submitDelete() {
+  if (!pendingDelete) {
+    return
+  }
+
+  const entry = pendingDelete
+  const parentPath = getParentPath(entry.path)
+
+  await fetchJson('/api/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: entry.path }),
+  })
+
+  closeDeleteConfirm()
+
+  if (shouldClearEditor(entry.path)) {
+    activeFilePath = null
+    setEditorEmpty('从左侧选择文件以预览内容')
+  }
+
+  await refreshTreeAt(parentPath)
 }
 
 function renderLineNumbers(content) {
@@ -104,6 +262,7 @@ function markActiveFile(path) {
 }
 
 async function openFile(path) {
+  activeFilePath = path
   markActiveFile(path)
   editorTabEl.textContent = path
   editorBodyEl.innerHTML = '<div class="editor-empty">加载中…</div>'
@@ -141,6 +300,8 @@ function createTreeRow(entry, depth) {
     icon.className = 'tree-icon'
     icon.innerHTML = renderFileIcon(resolveDirectoryIconName(entry.name, false))
     row.appendChild(icon)
+
+    appendTreeRowActions(row, entry)
   } else {
     const spacer = document.createElement('span')
     spacer.className = 'tree-chevron placeholder'
@@ -157,6 +318,11 @@ function createTreeRow(entry, depth) {
   label.textContent = entry.name
 
   row.append(label)
+
+  if (entry.type === 'file') {
+    appendTreeRowActions(row, entry)
+  }
+
   return row
 }
 
@@ -170,6 +336,36 @@ function updateDirectoryRowIcon(row, expanded) {
   if (chevronEl) {
     chevronEl.textContent = expanded ? '▾' : '▸'
   }
+}
+
+async function reloadDirectory(path, container, depth) {
+  container.innerHTML = ''
+  await loadDirectory(path, container, depth)
+}
+
+async function refreshTreeAt(parentPath) {
+  if (!parentPath) {
+    await reloadDirectory('', fileTreeEl, 0)
+    return
+  }
+
+  const row = fileTreeEl.querySelector(`.tree-row.directory[data-path="${CSS.escape(parentPath)}"]`)
+  const node = row?.closest('.tree-node')
+  if (!row || !node) {
+    await reloadDirectory('', fileTreeEl, 0)
+    return
+  }
+
+  const depth = Number(row.style.getPropertyValue('--depth') || '0')
+  const childContainer = node.querySelector('.tree-children')
+  if (!childContainer) {
+    return
+  }
+
+  node.classList.add('expanded')
+  updateDirectoryRowIcon(row, true)
+  node.dataset.loaded = '1'
+  await reloadDirectory(parentPath, childContainer, depth + 1)
 }
 
 async function loadDirectory(path, container, depth) {
@@ -347,6 +543,63 @@ function connectTerminal() {
 
 async function init() {
   initTerminal()
+
+  rootCreateFolderBtn.addEventListener('click', () => {
+    openCreateDialog('', 'directory')
+  })
+  rootCreateFileBtn.addEventListener('click', () => {
+    openCreateDialog('', 'file')
+  })
+
+  confirmCancelEl.addEventListener('click', () => {
+    closeDeleteConfirm()
+  })
+
+  confirmDialogEl.addEventListener('click', (event) => {
+    if (event.target === confirmDialogEl) {
+      closeDeleteConfirm()
+    }
+  })
+
+  confirmOkEl.addEventListener('click', async () => {
+    if (!pendingDelete) {
+      return
+    }
+
+    try {
+      await submitDelete()
+    } catch (error) {
+      confirmMessageEl.textContent = error instanceof Error ? error.message : '删除失败'
+    }
+  })
+
+  createCancelEl.addEventListener('click', () => {
+    closeCreateDialog()
+  })
+
+  createDialogEl.addEventListener('click', (event) => {
+    if (event.target === createDialogEl) {
+      closeCreateDialog()
+    }
+  })
+
+  createFormEl.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    const name = createInputEl.value.trim()
+    if (!name || !pendingCreate) {
+      return
+    }
+
+    try {
+      await submitCreate(name)
+    } catch (error) {
+      createErrorEl.textContent = error instanceof Error ? error.message : '创建失败'
+    }
+  })
+
+  createInputEl.addEventListener('input', () => {
+    createErrorEl.textContent = ''
+  })
 
   try {
     const info = await fetchJson('/api/info')

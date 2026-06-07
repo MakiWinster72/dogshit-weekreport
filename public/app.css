@@ -74,6 +74,17 @@ body {
   flex-shrink: 0;
 }
 
+.file-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.file-panel-header .tree-actions {
+  opacity: 1;
+}
+
 .file-tree {
   flex: 1;
   overflow: auto;
@@ -91,6 +102,15 @@ body {
   padding: 3px 8px 3px calc(8px + var(--depth, 0) * 14px);
   cursor: pointer;
   white-space: nowrap;
+  position: relative;
+}
+
+.tree-row.directory {
+  padding-right: 76px;
+}
+
+.tree-row.file {
+  padding-right: 28px;
 }
 
 .tree-row:hover {
@@ -129,6 +149,63 @@ body {
 .tree-label {
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.file-panel-header .tree-actions {
+  margin-left: auto;
+}
+
+.tree-row .tree-actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  background: #2a2d2e;
+  border-radius: 4px;
+  padding: 1px;
+}
+
+.tree-row.directory:hover .tree-actions,
+.tree-row.directory:focus-within .tree-actions,
+.tree-row.file:hover .tree-actions,
+.tree-row.file:focus-within .tree-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tree-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #cccccc;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tree-action-btn:hover {
+  background: #3c3c3c;
+  color: #ffffff;
+}
+
+.tree-action-btn.danger:hover {
+  background: #5a1d1d;
+  color: #f48771;
 }
 
 .tree-children {
@@ -387,4 +464,102 @@ body {
   .workspace {
     grid-template-columns: 220px minmax(0, 1fr) 280px;
   }
+}
+
+.create-dialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+}
+
+.create-dialog.hidden {
+  display: none;
+}
+
+.create-dialog-card {
+  width: min(360px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 8px;
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.create-dialog-title {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.create-dialog-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  background: #1e1e1e;
+  color: #cccccc;
+  font: inherit;
+  outline: none;
+}
+
+.create-dialog-input:focus {
+  border-color: #007acc;
+}
+
+.create-dialog-error {
+  min-height: 18px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #f48771;
+}
+
+.create-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.create-dialog-btn {
+  border: none;
+  border-radius: 6px;
+  background: #3c3c3c;
+  color: #cccccc;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.create-dialog-btn:hover {
+  background: #4a4a4a;
+}
+
+.create-dialog-btn.primary {
+  background: #0e639c;
+  color: #ffffff;
+}
+
+.create-dialog-btn.primary:hover {
+  background: #1177bb;
+}
+
+.create-dialog-btn.danger {
+  background: #9b2c2c;
+  color: #ffffff;
+}
+
+.create-dialog-btn.danger:hover {
+  background: #b83a3a;
+}
+
+.confirm-dialog-message {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cccccc;
+  word-break: break-all;
 }

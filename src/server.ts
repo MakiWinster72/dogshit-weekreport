@@ -5,7 +5,7 @@ import express from 'express'
 import type { IPty } from 'node-pty'
 import * as pty from 'node-pty'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { FileAccessError, listDirectory, readProjectFile } from './files.js'
+import { FileAccessError, createProjectDirectory, createProjectFile, deleteProjectEntry, listDirectory, readProjectFile } from './files.js'
 import { buildShellEnv, getDefaultShell } from './shell.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -129,6 +129,8 @@ export async function startWorkspaceServer(options: WorkspaceServerOptions): Pro
   const app = express()
   const publicDir = resolvePublicDir()
 
+  app.use(express.json({ limit: '16kb' }))
+
   app.get('/api/info', (_req, res) => {
     res.json({
       cwd,
@@ -152,6 +154,37 @@ export async function startWorkspaceServer(options: WorkspaceServerOptions): Pro
     try {
       const file = await readProjectFile(cwd, path)
       res.json(file)
+    } catch (error) {
+      sendFileError(res, error)
+    }
+  })
+
+  app.post('/api/create', async (req, res) => {
+    const parentPath = typeof req.body?.parentPath === 'string' ? req.body.parentPath : ''
+    const name = typeof req.body?.name === 'string' ? req.body.name : ''
+    const type = req.body?.type
+
+    if (type !== 'file' && type !== 'directory') {
+      res.status(400).json({ error: '无效的类型' })
+      return
+    }
+
+    try {
+      const entry =
+        type === 'directory'
+          ? await createProjectDirectory(cwd, parentPath, name)
+          : await createProjectFile(cwd, parentPath, name)
+      res.status(201).json({ entry })
+    } catch (error) {
+      sendFileError(res, error)
+    }
+  })
+
+  app.post('/api/delete', async (req, res) => {
+    const path = typeof req.body?.path === 'string' ? req.body.path : ''
+    try {
+      await deleteProjectEntry(cwd, path)
+      res.json({ ok: true })
     } catch (error) {
       sendFileError(res, error)
     }

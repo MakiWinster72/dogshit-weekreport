@@ -1,5 +1,5 @@
-import { lstat, readdir, readFile } from 'node:fs/promises'
-import { join, relative, resolve, sep } from 'node:path'
+import { lstat, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { basename, join, relative, resolve, sep } from 'node:path'
 
 const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist'])
 const MAX_FILE_BYTES = 1024 * 1024
@@ -113,4 +113,102 @@ export async function readProjectFile(root: string, relativePath: string): Promi
     size: stat.size,
     binary,
   }
+}
+
+const INVALID_ENTRY_NAME = /[\\/:*?"<>|\0]/
+
+function validateEntryName(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) {
+    throw new FileAccessError('名称不能为空', 400)
+  }
+  if (trimmed === '.' || trimmed === '..') {
+    throw new FileAccessError('名称无效', 400)
+  }
+  if (INVALID_ENTRY_NAME.test(trimmed)) {
+    throw new FileAccessError('名称包含非法字符', 400)
+  }
+  return trimmed
+}
+
+function buildEntryPath(root: string, parentPath: string, name: string): { absolute: string; relativePath: string } {
+  const safeName = validateEntryName(name)
+  const parentAbsolute = resolveProjectPath(root, parentPath)
+  const absolute = join(parentAbsolute, safeName)
+  const relativePath = relative(root, absolute).split(sep).join('/')
+
+  if (relativePath.startsWith('..') || relativePath.split('/').includes('..')) {
+    throw new FileAccessError('路径超出项目范围', 403)
+  }
+
+  return { absolute, relativePath }
+}
+
+export async function createProjectDirectory(
+  root: string,
+  parentPath: string,
+  name: string,
+): Promise<FileEntry> {
+  const { absolute, relativePath } = buildEntryPath(root, parentPath, name)
+
+  const parentStat = await lstat(resolveProjectPath(root, parentPath)).catch(() => {
+    throw new FileAccessError('父目录不存在', 404)
+  })
+  if (!parentStat.isDirectory()) {
+    throw new FileAccessError('父路径不是目录', 400)
+  }
+
+  await mkdir(absolute, { recursive: false }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'EEXIST') {
+      throw new FileAccessError('目录已存在', 409)
+    }
+    throw error
+  })
+
+  return {
+    name: basename(absolute),
+    path: relativePath,
+    type: 'directory',
+  }
+}
+
+export async function createProjectFile(
+  root: string,
+  parentPath: string,
+  name: string,
+): Promise<FileEntry> {
+  const { absolute, relativePath } = buildEntryPath(root, parentPath, name)
+
+  const parentStat = await lstat(resolveProjectPath(root, parentPath)).catch(() => {
+    throw new FileAccessError('父目录不存在', 404)
+  })
+  if (!parentStat.isDirectory()) {
+    throw new FileAccessError('父路径不是目录', 400)
+  }
+
+  await writeFile(absolute, '', { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'EEXIST') {
+      throw new FileAccessError('文件已存在', 409)
+    }
+    throw error
+  })
+
+  return {
+    name: basename(absolute),
+    path: relativePath,
+    type: 'file',
+  }
+}
+
+export async function deleteProjectEntry(root: string, relativePath: string): Promise<void> {
+  if (!relativePath.trim()) {
+    throw new FileAccessError('不能删除项目根目录', 400)
+  }
+
+  const absolute = resolveProjectPath(root, relativePath)
+  await lstat(absolute).catch(() => {
+    throw new FileAccessError('路径不存在', 404)
+  })
+
+  await rm(absolute, { recursive: true, force: true })
 }
