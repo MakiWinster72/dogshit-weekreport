@@ -1,112 +1,252 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>项目工作台</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
-  <link rel="stylesheet" href="/app.css">
-</head>
-<body>
-  <div class="app">
-    <header class="topbar">
-      <span class="topbar-title">项目工作台</span>
-      <span class="topbar-path" id="project-path">—</span>
-    </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DWR</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
+    />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <span class="topbar-title">DWR</span>
+        <span class="topbar-path" id="project-path">—</span>
+      </header>
 
-    <div class="workspace">
-      <aside class="sidebar">
-        <div class="panel-header file-panel-header">
-          <span>文件</span>
-          <div class="tree-actions">
-            <button type="button" class="tree-action-btn" id="root-create-folder" title="新建文件夹" aria-label="新建文件夹">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>
-            </button>
-            <button type="button" class="tree-action-btn" id="root-create-file" title="新建文件" aria-label="新建文件">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7h-2v-2h-2v2H9v2h2v2h2v-2h2v-2z"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="file-tree" id="file-tree"></div>
-        <div class="theme-toggles" title="按 Alt+T 快捷切换主题">
-          <button type="button" class="theme-circle theme-dark active" data-theme="dark" aria-label="VS Code Dark"></button>
-          <button type="button" class="theme-circle theme-light" data-theme="light" aria-label="GitHub Light"></button>
-          <button type="button" class="theme-circle theme-one-dark" data-theme="one-dark" aria-label="One Dark Pro"></button>
-          <span class="theme-hint">Alt+T</span>
-        </div>
-      </aside>
-
-      <main class="editor-pane">
-        <div class="editor-header">
-          <span class="editor-tab active" id="editor-tab">未打开文件</span>
-          <div class="editor-toolbar hidden" id="editor-toolbar">
-            <button type="button" class="editor-icon-btn" id="editor-fullscreen" title="全屏 (Alt+F)">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" class="icon-enter"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" class="icon-exit" style="display:none"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
-            </button>
-            <div class="editor-mode-switch">
-              <button type="button" class="editor-mode-btn active" id="editor-mode-view" title="查看模式 (Alt+V)">
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 4C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 16 4 12 4zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-                <span>查看</span>
+      <div class="workspace">
+        <aside class="sidebar">
+          <div class="panel-header file-panel-header">
+            <span>文件</span>
+            <div class="tree-actions">
+              <button
+                type="button"
+                class="tree-action-btn"
+                id="root-create-folder"
+                title="新建文件夹"
+                aria-label="新建文件夹"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"
+                  />
+                </svg>
               </button>
-              <button type="button" class="editor-mode-btn" id="editor-mode-edit" title="编辑模式 (Alt+E)">
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                <span>编辑</span>
+              <button
+                type="button"
+                class="tree-action-btn"
+                id="root-create-file"
+                title="新建文件"
+                aria-label="新建文件"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7h-2v-2h-2v2H9v2h2v2h2v-2h2v-2z"
+                  />
+                </svg>
               </button>
             </div>
-            <button type="button" class="editor-save-btn" id="editor-save" disabled title="保存 (Ctrl+S)">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-              <span>保存</span>
-            </button>
           </div>
-        </div>
-        <div class="editor-body" id="editor-body">
-          <div class="editor-empty">从左侧选择文件以预览内容</div>
-        </div>
-      </main>
+          <div class="file-tree" id="file-tree"></div>
+          <div class="theme-toggles" title="按 Alt+T 快捷切换主题">
+            <button
+              type="button"
+              class="theme-circle theme-dark active"
+              data-theme="dark"
+              aria-label="VS Code Dark"
+            ></button>
+            <button
+              type="button"
+              class="theme-circle theme-light"
+              data-theme="light"
+              aria-label="GitHub Light"
+            ></button>
+            <button
+              type="button"
+              class="theme-circle theme-one-dark"
+              data-theme="one-dark"
+              aria-label="One Dark Pro"
+            ></button>
+            <span class="theme-hint">Alt+T</span>
+          </div>
+        </aside>
 
-      <aside class="terminal-pane">
-        <div class="panel-header terminal-header">
-          <span>终端</span>
-          <span class="terminal-meta">
-            <span id="shell-label">—</span>
-            <span class="status-dot" id="terminal-status"></span>
-          </span>
-        </div>
-        <div class="terminal-body" id="terminal"></div>
-      </aside>
-    </div>
-  </div>
+        <main class="editor-pane">
+          <div class="editor-header">
+            <span class="editor-tab active" id="editor-tab">未打开文件</span>
+            <div class="editor-toolbar hidden" id="editor-toolbar">
+              <button
+                type="button"
+                class="editor-icon-btn"
+                id="editor-fullscreen"
+                title="全屏 (Alt+F)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                  class="icon-enter"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+                  />
+                </svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                  class="icon-exit"
+                  style="display: none"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"
+                  />
+                </svg>
+              </button>
+              <div class="editor-mode-switch">
+                <button
+                  type="button"
+                  class="editor-mode-btn active"
+                  id="editor-mode-view"
+                  title="查看模式 (Alt+V)"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M12 4C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 16 4 12 4zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+                    />
+                  </svg>
+                  <span>查看</span>
+                </button>
+                <button
+                  type="button"
+                  class="editor-mode-btn"
+                  id="editor-mode-edit"
+                  title="编辑模式 (Alt+E)"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                    />
+                  </svg>
+                  <span>编辑</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                class="editor-save-btn"
+                id="editor-save"
+                disabled
+                title="保存 (Ctrl+S)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
+                  />
+                </svg>
+                <span>保存</span>
+              </button>
+            </div>
+          </div>
+          <div class="editor-body" id="editor-body">
+            <div class="editor-empty">从左侧选择文件以预览内容</div>
+          </div>
+        </main>
 
-  <div class="create-dialog hidden" id="confirm-dialog">
-    <div class="create-dialog-card">
-      <div class="create-dialog-title" id="confirm-title">确认删除</div>
-      <div class="confirm-dialog-message" id="confirm-message"></div>
-      <div class="create-dialog-actions">
-        <button type="button" class="create-dialog-btn" id="confirm-cancel">取消</button>
-        <button type="button" class="create-dialog-btn danger" id="confirm-ok">删除</button>
+        <aside class="terminal-pane">
+          <div class="panel-header terminal-header">
+            <span>终端</span>
+            <span class="terminal-meta">
+              <span id="shell-label">—</span>
+              <span class="status-dot" id="terminal-status"></span>
+            </span>
+          </div>
+          <div class="terminal-body" id="terminal"></div>
+        </aside>
       </div>
     </div>
-  </div>
 
-  <div class="create-dialog hidden" id="create-dialog">
-    <form class="create-dialog-card" id="create-form">
-      <div class="create-dialog-title" id="create-title">新建</div>
-      <input class="create-dialog-input" id="create-input" type="text" autocomplete="off" spellcheck="false">
-      <div class="create-dialog-error" id="create-error"></div>
-      <div class="create-dialog-actions">
-        <button type="button" class="create-dialog-btn" id="create-cancel">取消</button>
-        <button type="submit" class="create-dialog-btn primary">创建</button>
+    <div class="create-dialog hidden" id="confirm-dialog">
+      <div class="create-dialog-card">
+        <div class="create-dialog-title" id="confirm-title">确认删除</div>
+        <div class="confirm-dialog-message" id="confirm-message"></div>
+        <div class="create-dialog-actions">
+          <button type="button" class="create-dialog-btn" id="confirm-cancel">
+            取消
+          </button>
+          <button
+            type="button"
+            class="create-dialog-btn danger"
+            id="confirm-ok"
+          >
+            删除
+          </button>
+        </div>
       </div>
-    </form>
-  </div>
+    </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
-  <script src="/file-icons.js"></script>
-  <script src="/app.js"></script>
-</body>
+    <div class="create-dialog hidden" id="create-dialog">
+      <form class="create-dialog-card" id="create-form">
+        <div class="create-dialog-title" id="create-title">新建</div>
+        <input
+          class="create-dialog-input"
+          id="create-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="create-dialog-error" id="create-error"></div>
+        <div class="create-dialog-actions">
+          <button type="button" class="create-dialog-btn" id="create-cancel">
+            取消
+          </button>
+          <button type="submit" class="create-dialog-btn primary">创建</button>
+        </div>
+      </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+    <script src="/file-icons.js"></script>
+    <script src="/app.js"></script>
+  </body>
 </html>
