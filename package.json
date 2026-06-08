@@ -2,6 +2,7 @@
   "name": "dogeshit-weekreport",
   "version": "0.1.0",
   "description": "Browser-based project terminal (like VS Code integrated terminal)",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "weekreport-term": "./dist/index.js"
